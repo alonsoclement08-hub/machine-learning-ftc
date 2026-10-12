@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BIOBUZZ Auto IA</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">🐝</span>
+    <div>
+      <h1>BIOBUZZ Auto IA</h1>
+      <p class="sub">FTC 2026-2027 · l'IA cherche le meilleur AUTO de 30 s pour votre robot</p>
+    </div>
+  </div>
+  <div class="score-strip" id="scoreStrip">
+    <div class="kpi"><span class="kpi-label">Score AUTO espéré</span><span class="kpi-value" id="kpiScore">–</span></div>
+    <div class="kpi"><span class="kpi-label">Bascules HIVE</span><span class="kpi-value" id="kpiTips">–</span></div>
+    <div class="kpi"><span class="kpi-label">Durée</span><span class="kpi-value" id="kpiTime">–</span></div>
+    <div class="kpi"><span class="kpi-label">Fautes</span><span class="kpi-value" id="kpiFaults">–</span></div>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="panel">
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="robot" role="tab">1. Robot</button>
+      <button class="tab" data-tab="jeu" role="tab">2. Match</button>
+      <button class="tab" data-tab="ia" role="tab">3. Entraîner</button>
+      <button class="tab" data-tab="export" role="tab">4. Exporter</button>
+    </nav>
+
+    <!-- ===================== ROBOT ===================== -->
+    <section class="tabpane active" id="tab-robot">
+      <div class="card">
+        <h2>Modèle 3D du robot</h2>
+        <p class="hint">Importez votre robot en <b>STEP</b> (.step / .stp) ou IGES. Les dimensions sont mesurées automatiquement.</p>
+        <div class="row">
+          <label class="btn primary file">Importer mon robot…
+            <input type="file" id="robotFile" accept=".step,.stp,.iges,.igs,.ipt,.iam">
+          </label>
+          <button class="btn" id="robotClear" type="button">Retirer</button>
+        </div>
+        <div id="importStatus" class="status"></div>
+        <div id="importAxes" class="grid2" hidden>
+          <label>Axe « haut » du fichier
+            <select id="axisUp"><option value="z">+Z</option><option value="y">+Y</option><option value="x">+X</option><option value="-z">-Z</option><option value="-y">-Y</option><option value="-x">-X</option></select>
+          </label>
+          <label>Axe « avant » du robot
+            <select id="axisFwd"><option value="x">+X</option><option value="-x">-X</option><option value="y">+Y</option><option value="-y">-Y</option><option value="z">+Z</option><option value="-z">-Z</option></select>
+          </label>
+          <div class="measured" id="importDims"></div>
+          <button class="btn" id="useDims" type="button">Utiliser ces dimensions</button>
+        </div>
+      </div>
+
+      <form id="robotForm" class="card" autocomplete="off">
+        <h2>Caractéristiques</h2>
+        <div class="grid2">
+          <label>Nom <input name="nom" type="text"></label>
+          <label>Châssis
+            <select name="chassis"><option value="mecanum">Mecanum (crabe possible)</option><option value="tank">Tank / différentiel</option></select>
+          </label>
+          <label>Longueur (cm) <input name="longueur_cm" type="number" step="0.1" min="10" max="60"></label>
+          <label>Largeur (cm) <input name="largeur_cm" type="number" step="0.1" min="10" max="60"></label>
+          <label>Hauteur (cm) <input name="hauteur_cm" type="number" step="0.1" min="5" max="80"></label>
+        </div>
+
+        <h3 class="calib">Les 3 variables de calibrage</h3>
+        <div class="grid3">
+          <label><span class="mono">MS_PAR_METRE</span><input name="msParMetre" type="number" step="10" min="100"><small>ms pour avancer d'1 m</small></label>
+          <label><span class="mono">MS_POUR_180_DEG</span><input name="msPour180" type="number" step="10" min="100"><small>ms pour un demi-tour</small></label>
+          <label><span class="mono">PUISSANCE_TIR</span><input name="puissanceTir" type="number" step="0.01" min="0" max="1"><small>0 à 1</small></label>
+        </div>
+
+        <h3>Lanceur</h3>
+        <div class="grid2">
+          <label>Tire par
+            <select name="lanceur.sens"><option value="avant">l'avant</option><option value="arriere">l'arrière</option></select>
+          </label>
+          <label>Précision (0-1) <input name="lanceur.precision" type="number" step="0.05" min="0" max="1"></label>
+          <label>Distance min (cm) <input name="lanceur.distMin_cm" type="number" step="5" min="0"></label>
+          <label>Distance max (cm) <input name="lanceur.distMax_cm" type="number" step="5" min="10"></label>
+          <label>Montée en vitesse (ms) <input name="lanceur.monteeMs" type="number" step="50" min="0"></label>
+          <label>Temps par balle (ms) <input name="lanceur.msParBalle" type="number" step="25" min="50"></label>
+        </div>
+
+        <h3>Intake</h3>
+        <div class="grid2">
+          <label>Ramasse par
+            <select name="intake.sens"><option value="avant">l'avant</option><option value="arriere">l'arrière</option></select>
+          </label>
+          <label>Temps par balle (ms) <input name="intake.msParBalle" type="number" step="25" min="50"></label>
+          <label>Approche intake allumé (cm) <input name="intake.approche_cm" type="number" step="1" min="2" max="40"></label>
+          <label>Puissance intake <input name="intake.puissance" type="number" step="0.05" min="0" max="1"></label>
+          <label class="check"><input name="intake.sol" type="checkbox"> Ramasse au sol (GARDEN)</label>
+          <label class="check"><input name="intake.fleur" type="checkbox"> Sort le POLLEN du bas des FLOWERS</label>
+        </div>
+
+        <details>
+          <summary>Réglages avancés &amp; noms des moteurs</summary>
+          <div class="grid2">
+            <label>Puissance des roues <input name="puissanceRoues" type="number" step="0.05" min="0.1" max="1"></label>
+            <label>Puissance de rotation <input name="puissanceRotation" type="number" step="0.05" min="0.1" max="1"></label>
+            <label>Facteur crabe (mecanum) <input name="facteurCrabe" type="number" step="0.05" min="0.3" max="1.2"></label>
+            <label>Pause après mouvement (ms) <input name="pauseMs" type="number" step="10" min="0"></label>
+            <label class="check"><input name="inverserGauche" type="checkbox"> Moteurs gauches en REVERSE</label>
+          </div>
+          <p class="hint">Noms exacts dans la configuration du Robot Controller :</p>
+          <div class="grid2">
+            <label>Avant gauche <input name="moteurs.avantGauche" type="text"></label>
+            <label>Avant droit <input name="moteurs.avantDroit" type="text"></label>
+            <label>Arrière gauche <input name="moteurs.arriereGauche" type="text"></label>
+            <label>Arrière droit <input name="moteurs.arriereDroit" type="text"></label>
+            <label>Gauche (tank) <input name="moteurs.gauche" type="text"></label>
+            <label>Droit (tank) <input name="moteurs.droit" type="text"></label>
+            <label>Lanceur <input name="moteurs.lanceur" type="text"></label>
+            <label>Intake <input name="moteurs.intake" type="text"></label>
+            <label>Alimentation lanceur <input name="moteurs.alimentation" type="text" placeholder="vide = intake"></label>
+          </div>
+        </details>
+        <div id="robotWarnings" class="warnings"></div>
+        <div class="row">
+          <button class="btn" id="saveRobot" type="button">Enregistrer le robot (.json)</button>
+          <label class="btn file">Charger un robot…<input type="file" id="loadRobot" accept=".json"></label>
+          <button class="btn ghost" id="resetRobot" type="button">Valeurs par défaut</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- ===================== MATCH ===================== -->
+    <section class="tabpane" id="tab-jeu">
+      <form id="gameForm" class="card" autocomplete="off">
+        <h2>Match</h2>
+        <div class="grid2">
+          <label>Alliance
+            <select name="alliance"><option value="red">Rouge</option><option value="blue">Bleue</option></select>
+          </label>
+          <label>Balles pour faire basculer
+            <input name="seuilBascule" type="number" min="1" max="20" step="1">
+            <small>dans la CELL du haut (3 NECTAR y sont déjà). À mesurer sur un vrai terrain !</small>
+          </label>
+          <label>Marge de sécurité (s) <input name="margeSecurite" type="number" min="0" max="10" step="0.5"></label>
+          <label class="check"><input name="viserPark" type="checkbox"> Viser le PARK (LOADING ZONE)</label>
+        </div>
+        <p class="hint">Le même programme marche en rouge et en bleu : le terrain est symétrique.</p>
+      </form>
+      <div class="card">
+        <h2>Contraintes sur le terrain</h2>
+        <div class="row">
+          <button class="btn" id="placeStart" type="button">Imposer le départ (cliquer sur le terrain)</button>
+          <button class="btn ghost" id="clearStart" type="button">Départ libre</button>
+        </div>
+        <label class="inline">Orientation du départ
+          <select id="startHeading">
+            <option value="0">avant vers le centre</option>
+            <option value="90">avant vers la gauche</option>
+            <option value="-90">avant vers la droite</option>
+            <option value="180">avant vers le mur d'alliance</option>
+          </select>
+        </label>
+        <div class="row">
+          <button class="btn" id="drawPartner" type="button">Dessiner la zone du partenaire</button>
+          <button class="btn ghost" id="clearPartner" type="button">Effacer la zone</button>
+        </div>
+        <div id="constraintStatus" class="status"></div>
+      </div>
+      <div class="card rules">
+        <h2>Règles vérifiées (manuel TU04)</h2>
+        <ul id="rulesList"></ul>
+        <p class="hint">Points AUTO : LEAVE 3 · PARK 5 · HIVE TIP 20. MINOR FOUL = 5 pts et MAJOR FOUL = 20 pts pour l'adversaire.</p>
+      </div>
+    </section>
+
+    <!-- ===================== IA ===================== -->
+    <section class="tabpane" id="tab-ia">
+      <div class="card">
+        <h2>Apprentissage</h2>
+        <p class="hint">Algorithme génétique : une population de stratégies est simulée, les meilleures se croisent et mutent à chaque génération.</p>
+        <div class="row">
+          <button class="btn primary" id="trainBtn" type="button">▶ Lancer l'entraînement</button>
+          <button class="btn ghost" id="resetTrain" type="button">Recommencer</button>
+        </div>
+        <label class="inline">Générations <input id="maxGen" type="number" value="300" min="10" max="5000" step="10"></label>
+        <div class="stats">
+          <div><span>Génération</span><b id="genCount">0</b></div>
+          <div><span>Stratégies testées</span><b id="evalCount">0</b></div>
+          <div><span>Meilleur score</span><b id="bestScore">–</b></div>
+        </div>
+        <canvas id="chart" height="140" aria-label="Évolution du meilleur score"></canvas>
+      </div>
+      <div class="card">
+        <h2>Meilleur plan</h2>
+        <ol id="planSteps" class="steps"></ol>
+        <div id="faultList" class="warnings"></div>
+      </div>
+    </section>
+
+    <!-- ===================== EXPORT ===================== -->
+    <section class="tabpane" id="tab-export">
+      <div class="card">
+        <h2>Placement de départ</h2>
+        <ul id="startText" class="plain"></ul>
+      </div>
+      <div class="card">
+        <h2>Exporter</h2>
+        <div class="row">
+          <button class="btn primary" id="dlJava" type="button">Télécharger AutoBiobuzzIA.java</button>
+          <button class="btn primary" id="dlBlk" type="button">Télécharger AutoBiobuzzIA.blk</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="showJava" type="button">Voir le Java</button>
+          <button class="btn" id="showBlk" type="button">Voir le .blk</button>
+          <button class="btn" id="copyCode" type="button">Copier</button>
+        </div>
+        <textarea id="codeView" spellcheck="false" readonly></textarea>
+        <p class="hint"><b>Java</b> : copiez le fichier dans <span class="mono">TeamCode/src/main/java/org/firstinspires/ftc/teamcode/</span>.
+          <b>Blockly</b> : sur la page Blocks du Robot Controller, « Upload Op Mode » et choisissez le .blk.</p>
+      </div>
+    </section>
+  </aside>
+
+  <section class="stage">
+    <div class="viewbar">
+      <div class="seg" role="tablist">
+        <button class="segbtn active" data-view="2d">Vue 2D</button>
+        <button class="segbtn" data-view="3d">Vue 3D</button>
+      </div>
+      <div class="player">
+        <button class="btn icon" id="playBtn" type="button" title="Rejouer le plan">▶</button>
+        <input type="range" id="timeSlider" min="0" max="30" step="0.05" value="0" aria-label="Temps">
+        <span class="mono" id="timeLabel">0.0 s</span>
+      </div>
+    </div>
+    <div class="views">
+      <canvas id="field2d" class="view active" aria-label="Terrain vu de dessus"></canvas>
+      <div id="field3d" class="view"></div>
+    </div>
+    <div class="legend">
+      <span><i class="sw pollen"></i>POLLEN</span>
+      <span><i class="sw nectar-r"></i>NECTAR rouge</span>
+      <span><i class="sw nectar-b"></i>NECTAR bleu</span>
+      <span><i class="sw zone"></i>LOADING ZONE / GARDEN</span>
+      <span><i class="sw forbid"></i>Côté adverse (interdit en AUTO)</span>
+      <span class="note">Animation : scénario où tous les tirs entrent. Le score affiché est l'espérance.</span>
+    </div>
+  </section>
+</main>
+
+<div id="modal" class="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <h2 id="modalTitle"></h2>
+    <div id="modalBody"></div>
+    <div class="row end"><button class="btn primary" id="modalClose" type="button">OK</button></div>
+  </div>
+</div>
+<div id="busy" class="busy" hidden><div class="spinner"></div><p id="busyText">Chargement…</p></div>
+
+<script src="vendor/three.min.js"></script>
+<script src="vendor/OrbitControls.js"></script>
+<script src="data/field_layout.js"></script>
+<script src="data/field_mesh.js"></script>
+<script src="js/geometry.js"></script>
+<script src="js/robot.js"></script>
+<script src="js/rules.js"></script>
+<script src="js/planner.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/optimizer.js"></script>
+<script src="js/export_java.js"></script>
+<script src="js/export_blockly.js"></script>
+<script src="js/render2d.js"></script>
+<script src="js/render3d.js"></script>
+<script src="js/robot_import.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

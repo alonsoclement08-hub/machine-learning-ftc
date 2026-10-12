@@ -1,0 +1,5 @@
+node_modules/
+*.step
+*.stp
+.DS_Store
+__MACOSX/
