@@ -12,7 +12,7 @@
     <span class="logo" aria-hidden="true">🐝</span>
     <div>
       <h1>BIOBUZZ Auto IA</h1>
-      <p class="sub">FTC 2026-2027 · l'IA cherche le meilleur AUTO de 30 s pour votre robot</p>
+      <p class="sub">FTC 2026-2027 · l'IA cherche le meilleur AUTO de 30 s pour votre robot · <span class="mono" id="appVersion">v3 · 13/10</span></p>
     </div>
   </div>
   <div class="score-strip" id="scoreStrip">
@@ -37,6 +37,7 @@
       <div class="card">
         <h2>Modèle 3D du robot</h2>
         <p class="hint">Importez votre robot en <b>STL</b> (le plus rapide, quelques secondes), <b>STEP</b> (.step / .stp) ou IGES. Les dimensions sont mesurées automatiquement.</p>
+        <p class="warn-box" id="safariNote" hidden>Vous utilisez <b>Safari</b> : le plus sûr est d'importer votre robot en <b>STL</b> (quelques secondes). Si un STEP est refusé, ouvrez l'appli dans <b>Chrome</b> ou <b>Edge</b>.</p>
         <div class="row">
           <label class="btn primary file">Importer mon robot…
             <input type="file" id="robotFile" accept=".step,.stp,.iges,.igs,.stl,.ipt,.iam">

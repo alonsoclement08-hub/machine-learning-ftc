@@ -75,7 +75,7 @@
       try {
         self.postMessage({ type: 'progress', text: 'Démarrage du moteur 3D…' });
         const occt = await occtimportjs({ wasmBinary: wasm });
-        self.postMessage({ type: 'progress', text: 'Analyse du fichier STEP… (gros fichier = quelques minutes, l\'appli reste utilisable)' });
+        self.postMessage({ type: 'ready', text: 'Analyse du fichier STEP… (gros fichier = quelques minutes, l’appli reste utilisable)' });
         const res = (ext === 'iges' || ext === 'igs') ? occt.ReadIgesFile(bytes, params) : occt.ReadStepFile(bytes, params);
         if (!res || !res.success || !res.meshes.length) throw new Error('Le fichier n\\'a pas pu être lu (STEP invalide ou vide).');
         self.postMessage({ type: 'progress', text: 'Simplification (' + res.meshes.length + ' pièces)…' });
@@ -88,6 +88,7 @@
       }
     };`;
 
+  BZ._workerCode = WORKER_CODE; // exposé pour les tests (le code doit être du JS valide)
   let currentWorker = null; // { w, reject }
   BZ.cancelRobotImport = function () {
     if (currentWorker) {
@@ -101,35 +102,62 @@
   };
 
   // Lecture dans un worker (créé depuis un Blob : marche aussi en file://).
-  async function readInWorker(bytes, ext, onProgress) {
-    if (!root.OCCT_JS_SRC) await loadScript('vendor/occt-import-js.wasm.js');
-    if (!root.OCCT_JS_SRC) throw new Error('worker indisponible');
-    const wasm = await wasmBytes();
-    const blob = new Blob([root.OCCT_JS_SRC, '\n', WORKER_CODE], { type: 'text/javascript' });
-    const url = URL.createObjectURL(blob);
-    const w = new Worker(url);
-    return new Promise((resolve, reject) => {
-      currentWorker = { w, reject };
-      w.onmessage = (e) => {
-        const d = e.data;
-        if (d.type === 'progress') onProgress && onProgress(d.text);
-        else if (d.type === 'done') { w.terminate(); currentWorker = null; URL.revokeObjectURL(url); resolve(d); }
-        else if (d.type === 'error') { w.terminate(); currentWorker = null; URL.revokeObjectURL(url); reject(new Error(d.message)); }
-      };
-      w.onerror = (e) => { w.terminate(); currentWorker = null; URL.revokeObjectURL(url); reject(new Error(e.message || 'erreur du worker')); };
-      w.postMessage({ wasm, bytes, ext, params: PARAMS }, [wasm.buffer, bytes.buffer]);
-    });
+  BZ.WORKER_BLOCKED_MSG = 'Votre navigateur bloque la lecture des fichiers STEP quand l\'appli est ouverte comme fichier local ' +
+    '(c\'est le cas de Safari). Deux solutions : 1) importez le STL du robot (instantané, marche partout) ; ' +
+    '2) ouvrez l\'appli dans Chrome ou Edge (clic droit sur index.html > Ouvrir avec).';
+  // Délais de sécurité (ms) : démarrage du worker, démarrage du moteur 3D, lecture totale.
+  BZ.IMPORT_LIMITS = { firstMessage: 15000, engineReady: 90000, total: 15 * 60000, slowHint: 3 * 60000 };
+
+  function blockedError() {
+    const e = new Error(BZ.WORKER_BLOCKED_MSG);
+    e.blocked = true;
+    return e;
   }
 
-  // Lecture dans la page (secours si le navigateur refuse le worker).
-  async function readInPage(bytes, ext, onProgress) {
-    if (!root.occtimportjs) await loadScript('vendor/occt-import-js.js');
-    onProgress && onProgress('Lecture et triangulation des pièces (la page peut se figer)…');
-    await new Promise((r) => setTimeout(r, 50));
-    const occt = await root.occtimportjs({ wasmBinary: await wasmBytes() });
-    const res = (ext === 'iges' || ext === 'igs') ? occt.ReadIgesFile(bytes, PARAMS) : occt.ReadStepFile(bytes, PARAMS);
-    if (!res || !res.success || !res.meshes.length) throw new Error('Le fichier n\'a pas pu être lu (STEP invalide ou vide).');
-    return simplifyMeshes(res.meshes);
+  async function readInWorker(bytes, ext, onProgress) {
+    if (!root.OCCT_JS_SRC) await loadScript('vendor/occt-import-js.wasm.js');
+    if (!root.OCCT_JS_SRC || typeof Worker === 'undefined') throw blockedError();
+    const wasm = await wasmBytes();
+    let url, w;
+    try {
+      const blob = new Blob([root.OCCT_JS_SRC, '\n', WORKER_CODE], { type: 'text/javascript' });
+      url = URL.createObjectURL(blob);
+      w = new Worker(url);
+    } catch (e) {
+      throw blockedError();
+    }
+    const L = BZ.IMPORT_LIMITS;
+    return new Promise((resolve, reject) => {
+      const timers = [];
+      let gotMessage = false, engineReady = false;
+      const finish = () => {
+        timers.forEach(clearTimeout);
+        try { w.terminate(); } catch (e) { /* déjà arrêté */ }
+        currentWorker = null;
+        URL.revokeObjectURL(url);
+      };
+      const fail = (err) => { finish(); reject(err); };
+      currentWorker = { w, reject: (err) => { timers.forEach(clearTimeout); reject(err); } };
+      // le worker ne démarre pas (navigateur qui le bloque) : on arrête au lieu d'attendre indéfiniment
+      timers.push(setTimeout(() => { if (!gotMessage) fail(blockedError()); }, L.firstMessage));
+      timers.push(setTimeout(() => { if (!engineReady) fail(blockedError()); }, L.engineReady));
+      timers.push(setTimeout(() => fail(new Error('La lecture du STEP dépasse 15 minutes : le fichier est trop lourd. Importez plutôt le STL du robot.')), L.total));
+      timers.push(setTimeout(() => onProgress && onProgress('Toujours en lecture… (astuce : un STL du robot se charge en quelques secondes)'), L.slowHint));
+      w.onmessage = (e) => {
+        const d = e.data;
+        gotMessage = true;
+        if (d.type === 'ready') engineReady = true;
+        if (d.type === 'progress' || d.type === 'ready') onProgress && onProgress(d.text);
+        else if (d.type === 'done') { finish(); resolve(d); }
+        else if (d.type === 'error') fail(new Error(d.message));
+      };
+      w.onerror = (e) => { if (e && e.preventDefault) e.preventDefault(); fail(gotMessage && engineReady ? new Error((e && e.message) || 'erreur pendant la lecture') : blockedError()); };
+      try {
+        w.postMessage({ wasm, bytes, ext, params: PARAMS }, [wasm.buffer, bytes.buffer]);
+      } catch (e) {
+        fail(blockedError());
+      }
+    });
   }
 
   // ---------------- STL (binaire ou ASCII) : lu directement, en une fraction de seconde ----------------
@@ -211,14 +239,8 @@
       const head = new TextDecoder().decode(new Uint8Array(buf, 0, Math.min(buf.byteLength, 64)));
       if (head.indexOf('ISO-10303-21') < 0) throw new Error('Ce fichier n\'est pas un vrai STEP (il ne commence pas par « ISO-10303-21 »). Réexportez-le en STEP, ou importez un STL.');
     }
-    let res;
-    try {
-      res = await readInWorker(new Uint8Array(buf.slice(0)), ext, onProgress);
-    } catch (err) {
-      if (err && err.cancelled) throw err;
-      if (err && /n'a pas pu être lu/.test(err.message)) throw err;
-      res = await readInPage(new Uint8Array(buf), ext, onProgress);
-    }
+    // Pas de lecture "dans la page" en secours : sur un gros STEP elle fige l'onglet (Safari).
+    const res = await readInWorker(new Uint8Array(buf), ext, onProgress);
     const model = { name: file.name, meshes: res.meshes, kept: res.kept, dropped: res.dropped };
     model.rot = BZ.guessRotation(model);
     return model;

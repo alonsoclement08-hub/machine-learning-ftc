@@ -131,3 +131,9 @@ test('format inconnu ou faux STEP : erreur immédiate (pas de chargement infini)
   const m = await BZ.readRobotFile({ name: 'r.STL', arrayBuffer: async () => binaryStl(450, 450, 400) });
   assert.deepStrictEqual(dims(m), [45, 45, 40]);
 });
+
+test('le code du worker STEP est du JavaScript valide (sinon : repli qui fige la page)', () => {
+  assert.ok(BZ._workerCode && BZ._workerCode.length > 100);
+  // eslint-disable-next-line no-new-func
+  assert.doesNotThrow(() => new Function(BZ._workerCode));
+});

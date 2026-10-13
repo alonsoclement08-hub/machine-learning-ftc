@@ -16,6 +16,8 @@ Le programme exporté ne dépend que de **3 variables à calibrer** :
 
 1. Téléchargez ou clonez ce dossier.
 2. **Double-cliquez sur `index.html`**. L'appli s'ouvre dans votre navigateur (Chrome ou Edge conseillés).
+   Sous **Safari**, importez plutôt le robot en **STL** : Safari peut bloquer la lecture des STEP
+   quand l'appli est ouverte comme fichier local.
 
 Rien à installer et pas besoin d'Internet : l'appli marche aussi hors ligne, au bord du terrain.
 

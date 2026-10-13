@@ -436,6 +436,10 @@
       applyModel(true);
     } catch (err) {
       if (err.inventor) modal('Fichier Inventor : exportez-le en STEP', BZ.INVENTOR_HELP);
+      else if (err.blocked) modal('Lecture du STEP impossible dans ce navigateur',
+        '<p>Votre navigateur bloque la lecture des fichiers STEP quand l\'appli est ouverte comme fichier local (c\'est le cas de <b>Safari</b>).</p>' +
+        '<ol><li><b>Importez le STL</b> de votre robot : il se charge en quelques secondes, dans tous les navigateurs.</li>' +
+        '<li>Ou ouvrez l\'appli dans <b>Chrome</b> ou <b>Edge</b> : clic droit sur <span class="mono">index.html</span> &gt; Ouvrir avec.</li></ol>');
       else if (!err.cancelled) modal('Import impossible', `<p>${err.message || err}</p>`);
     } finally {
       busy(false);
@@ -513,6 +517,8 @@
   });
 
   // ---------------- Démarrage ----------------
+  const ua = navigator.userAgent || '';
+  if (/Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS/.test(ua)) $('safariNote').hidden = false;
   showRobotWarnings();
   $('constraintStatus').textContent = constraintText();
   pushState();
