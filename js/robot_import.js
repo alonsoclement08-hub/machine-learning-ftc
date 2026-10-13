@@ -38,7 +38,9 @@
   ].join(' ');
 
   // Réglages de triangulation : grossiers volontairement (c'est pour l'affichage et les dimensions).
-  const PARAMS = { linearUnit: 'centimeter', linearDeflectionType: 'absolute_value', linearDeflection: 0.12, angularDeflection: 0.8 };
+  // (Mesuré : sur un gros STEP, c'est l'analyse du fichier qui prend presque tout le temps, pas la
+  // triangulation ; une triangulation grossière garde surtout la 3D fluide.)
+  const PARAMS = { linearUnit: 'centimeter', linearDeflectionType: 'bounding_box_ratio', linearDeflection: 0.01, angularDeflection: 1.0 };
   const MIN_PART_CM = 1.2; // pièces plus petites que ça (diagonale) : supprimées
 
   // Simplification + fusion par couleur. Code partagé entre le worker et la page.
@@ -73,7 +75,7 @@
       try {
         self.postMessage({ type: 'progress', text: 'Démarrage du moteur 3D…' });
         const occt = await occtimportjs({ wasmBinary: wasm });
-        self.postMessage({ type: 'progress', text: 'Lecture et triangulation des pièces…' });
+        self.postMessage({ type: 'progress', text: 'Analyse du fichier STEP… (gros fichier = quelques minutes, l\'appli reste utilisable)' });
         const res = (ext === 'iges' || ext === 'igs') ? occt.ReadIgesFile(bytes, params) : occt.ReadStepFile(bytes, params);
         if (!res || !res.success || !res.meshes.length) throw new Error('Le fichier n\\'a pas pu être lu (STEP invalide ou vide).');
         self.postMessage({ type: 'progress', text: 'Simplification (' + res.meshes.length + ' pièces)…' });
