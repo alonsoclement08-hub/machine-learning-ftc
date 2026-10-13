@@ -36,10 +36,10 @@
     <section class="tabpane active" id="tab-robot">
       <div class="card">
         <h2>Modèle 3D du robot</h2>
-        <p class="hint">Importez votre robot en <b>STEP</b> (.step / .stp) ou IGES. Les dimensions sont mesurées automatiquement.</p>
+        <p class="hint">Importez votre robot en <b>STL</b> (le plus rapide, quelques secondes), <b>STEP</b> (.step / .stp) ou IGES. Les dimensions sont mesurées automatiquement.</p>
         <div class="row">
           <label class="btn primary file">Importer mon robot…
-            <input type="file" id="robotFile" accept=".step,.stp,.iges,.igs,.ipt,.iam">
+            <input type="file" id="robotFile" accept=".step,.stp,.iges,.igs,.stl,.ipt,.iam">
           </label>
           <button class="btn" id="robotClear" type="button">Retirer</button>
         </div>
@@ -53,6 +53,9 @@
           <button class="btn" type="button" data-rot="x" title="Basculer sur le côté (90°)">↻ côté</button>
           <button class="btn ghost" type="button" id="rotReset">Réinitialiser</button>
         </div>
+        <label class="inline" id="unitRow" hidden>Unité du fichier STL
+          <select id="stlUnit"><option value="mm">millimètres</option><option value="cm">centimètres</option><option value="in">pouces</option></select>
+        </label>
         <div class="measured" id="importDims"></div>
       </div>
 

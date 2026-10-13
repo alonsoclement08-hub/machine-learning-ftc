@@ -392,12 +392,15 @@
       $('importStatus').textContent = 'Aucun modèle : le robot est affiché comme une boîte.';
       $('importDims').textContent = '';
       $('rotBar').hidden = true;
+      $('unitRow').hidden = true;
       preview.show(null, robot);
       view3d.setRobotModel(null);
       pushState();
       return;
     }
     $('rotBar').hidden = false;
+    $('unitRow').hidden = !robotModel.stl;
+    if (robotModel.stl) $('stlUnit').value = robotModel.unit || 'mm';
     const d = BZ.robotModelDims(robotModel);
     if (updateDims) {
       robot.longueur_cm = Math.round(d.longueur * 10) / 10;
@@ -412,7 +415,8 @@
     const ok = d.longueur <= 45.72 && d.largeur <= 45.72 && d.hauteur <= 45.72;
     $('importDims').innerHTML = `${d.longueur.toFixed(1)} × ${d.largeur.toFixed(1)} × ${d.hauteur.toFixed(1)} cm (longueur × largeur × hauteur) · ` +
       (ok ? '<span class="ok">✓ tient dans le cube de 18 in</span>' : '<b style="color:var(--red)">✗ dépasse le cube de 45,7 cm (R102) : vérifiez l\'orientation</b>');
-    $('importStatus').textContent = `Modèle : ${robotModel.name}` + (robotModel.kept ? ` (${robotModel.kept} pièces gardées, ${robotModel.dropped} petites pièces retirées)` : '');
+    $('importStatus').textContent = `Modèle : ${robotModel.name}` + (robotModel.stl ? ` (STL, ${robotModel.tris || ''} triangles)`
+      : robotModel.kept ? ` (${robotModel.kept} pièces gardées, ${robotModel.dropped} petites pièces retirées)` : '');
     preview.show(BZ.buildRobotGroup(robotModel), robot);
     robotTop = BZ.robotTopImage(robotModel);
     view3d.init();
@@ -443,6 +447,12 @@
     BZ.saveRobotModel(robotModel);
     applyModel(true);
   }));
+  $('stlUnit').addEventListener('change', () => {
+    if (!robotModel || !robotModel.stl) return;
+    BZ.setModelUnit(robotModel, $('stlUnit').value);
+    BZ.saveRobotModel(robotModel);
+    applyModel(true);
+  });
   $('rotReset').addEventListener('click', () => {
     if (!robotModel) return;
     robotModel.rot = BZ.guessRotation(robotModel);

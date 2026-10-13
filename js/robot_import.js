@@ -132,6 +132,66 @@
     return simplifyMeshes(res.meshes);
   }
 
+  // ---------------- STL (binaire ou ASCII) : lu directement, en une fraction de seconde ----------------
+  const UNIT_CM = { mm: 0.1, cm: 1, in: 2.54 };
+
+  BZ.parseSTL = function (buf) {
+    const dv = new DataView(buf);
+    const n = buf.byteLength >= 84 ? dv.getUint32(80, true) : 0;
+    const head = new TextDecoder().decode(new Uint8Array(buf, 0, Math.min(buf.byteLength, 512))).trim().toLowerCase();
+    const isBinary = buf.byteLength === 84 + 50 * n || !(head.startsWith('solid') && head.includes('facet'));
+    let pos;
+    if (isBinary) {
+      if (buf.byteLength < 84 + 50 * n || n === 0) throw new Error('Fichier STL invalide ou vide.');
+      pos = new Float32Array(n * 9);
+      for (let i = 0; i < n; i++) {
+        const o = 84 + i * 50 + 12; // on saute la normale
+        for (let k = 0; k < 9; k++) pos[i * 9 + k] = dv.getFloat32(o + k * 4, true);
+      }
+    } else {
+      const txt = new TextDecoder().decode(new Uint8Array(buf));
+      const re = /vertex\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)/g;
+      const arr = [];
+      let m;
+      while ((m = re.exec(txt))) arr.push(+m[1], +m[2], +m[3]);
+      if (!arr.length) throw new Error('Fichier STL invalide ou vide.');
+      pos = new Float32Array(arr.length - (arr.length % 9));
+      for (let i = 0; i < pos.length; i++) pos[i] = arr[i];
+    }
+    return pos;
+  };
+
+  // Un STL n'a pas d'unité : on devine (robot FTC ~ 45 cm) d'après la plus grande dimension.
+  BZ.guessStlUnit = function (raw) {
+    const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < raw.length; i += 3) for (let a = 0; a < 3; a++) { const v = raw[i + a]; if (v < mn[a]) mn[a] = v; if (v > mx[a]) mx[a] = v; }
+    const big = Math.max(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]);
+    return big >= 100 ? 'mm' : big >= 10 ? 'cm' : 'in';
+  };
+
+  // Change l'unité d'un modèle STL (positions recalculées en cm).
+  BZ.setModelUnit = function (model, unit) {
+    if (!model.rawPos) return model;
+    const f = UNIT_CM[unit] || 0.1;
+    const pos = new Float32Array(model.rawPos.length);
+    for (let i = 0; i < pos.length; i++) pos[i] = model.rawPos[i] * f;
+    model.unit = unit;
+    model.meshes[0].pos = pos;
+    return model;
+  };
+
+  BZ.stlModel = function (name, buf) {
+    const raw = BZ.parseSTL(buf);
+    const idx = new Uint32Array(raw.length / 3);
+    for (let i = 0; i < idx.length; i++) idx[i] = i;
+    const model = { name, rawPos: raw, meshes: [{ pos: null, idx, color: [0.62, 0.66, 0.74] }], stl: true, tris: idx.length / 3 };
+    BZ.setModelUnit(model, BZ.guessStlUnit(raw));
+    model.rot = BZ.guessRotation(model);
+    return model;
+  };
+
+  BZ.ACCEPTED = ['step', 'stp', 'iges', 'igs', 'stl'];
+
   BZ.readRobotFile = async function (file, onProgress) {
     const ext = file.name.split('.').pop().toLowerCase();
     if (ext === 'ipt' || ext === 'iam') {
@@ -139,7 +199,18 @@
       e.inventor = true;
       throw e;
     }
+    if (BZ.ACCEPTED.indexOf(ext) < 0) {
+      throw new Error(`Format « .${ext} » non reconnu. Formats acceptés : STEP (.step/.stp), IGES (.iges/.igs) et STL (.stl).`);
+    }
     const buf = await file.arrayBuffer();
+    if (ext === 'stl') {
+      onProgress && onProgress('Lecture du STL…');
+      return BZ.stlModel(file.name, buf);
+    }
+    if (ext === 'step' || ext === 'stp') {
+      const head = new TextDecoder().decode(new Uint8Array(buf, 0, Math.min(buf.byteLength, 64)));
+      if (head.indexOf('ISO-10303-21') < 0) throw new Error('Ce fichier n\'est pas un vrai STEP (il ne commence pas par « ISO-10303-21 »). Réexportez-le en STEP, ou importez un STL.');
+    }
     let res;
     try {
       res = await readInWorker(new Uint8Array(buf.slice(0)), ext, onProgress);
@@ -268,9 +339,11 @@
     const ctx = cv.getContext('2d');
     // triangles triés du bas vers le haut (le dessus est dessiné en dernier)
     const tris = [];
+    const total = model.meshes.reduce((s, m) => s + m.idx.length / 3, 0);
+    const stride = Math.max(1, Math.ceil(total / 300000)) * 3; // gros STL : on échantillonne pour la vue 2D
     model.meshes.forEach((m, k) => {
       const p = P[k], ix = m.idx;
-      for (let i = 0; i < ix.length; i += 3) {
+      for (let i = 0; i + 2 < ix.length; i += stride) {
         const a = ix[i] * 3, b = ix[i + 1] * 3, c = ix[i + 2] * 3;
         const z = Math.max(p[a + 2], p[b + 2], p[c + 2]);
         // normale (pour l'ombrage)
@@ -308,7 +381,7 @@
   BZ.saveRobotModel = async function (model) {
     try {
       const db = await openDb();
-      const data = model ? { name: model.name, meshes: model.meshes, rot: model.rot } : null;
+      const data = model ? { name: model.name, meshes: model.meshes, rot: model.rot, rawPos: model.rawPos, unit: model.unit, stl: model.stl } : null;
       await new Promise((res, rej) => {
         const tx = db.transaction(STORE, 'readwrite');
         if (data) tx.objectStore(STORE).put(data, 'last'); else tx.objectStore(STORE).delete('last');

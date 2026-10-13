@@ -87,3 +87,47 @@ test('modèle 3D : rotations de 90° et dimensions', () => {
   d = BZ.robotModelDims(mY);
   assert.strictEqual(Math.round(d.hauteur), 10);
 });
+
+// ---------- STL ----------
+function boxTris(L, W, H) {
+  const v = [[0, 0, 0], [L, 0, 0], [L, W, 0], [0, W, 0], [0, 0, H], [L, 0, H], [L, W, H], [0, W, H]];
+  const f = [[0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]];
+  return f.map((t) => t.map((i) => v[i]));
+}
+function binaryStl(L, W, H) {
+  const tris = boxTris(L, W, H);
+  const buf = new ArrayBuffer(84 + 50 * tris.length);
+  const dv = new DataView(buf);
+  dv.setUint32(80, tris.length, true);
+  tris.forEach((t, i) => t.forEach((p, k) => p.forEach((c, a) => dv.setFloat32(84 + i * 50 + 12 + k * 12 + a * 4, c, true))));
+  return buf;
+}
+function asciiStl(L, W, H) {
+  const s = 'solid pave\n' + boxTris(L, W, H).map((t) => ' facet normal 0 0 0\n  outer loop\n' +
+    t.map((p) => `   vertex ${p[0]} ${p[1]} ${p[2]}\n`).join('') + '  endloop\n endfacet\n').join('') + 'endsolid pave\n';
+  return new TextEncoder().encode(s).buffer;
+}
+const dims = (m) => { const d = BZ.robotModelDims(m); return [d.longueur, d.largeur, d.hauteur].map((v) => Math.round(v * 10) / 10); };
+
+test('STL binaire : lu, unité mm devinée, dimensions en cm', () => {
+  const m = BZ.stlModel('robot.stl', binaryStl(400, 300, 200));
+  assert.strictEqual(m.unit, 'mm');
+  assert.strictEqual(m.tris, 12);
+  assert.deepStrictEqual(dims(m), [40, 30, 20]);
+  BZ.setModelUnit(m, 'cm');
+  assert.deepStrictEqual(dims(m), [400, 300, 200]);
+});
+
+test('STL ASCII : lu correctement', () => {
+  const m = BZ.stlModel('robot.stl', asciiStl(300, 300, 300));
+  assert.strictEqual(m.tris, 12);
+  assert.deepStrictEqual(dims(m), [30, 30, 30]);
+});
+
+test('format inconnu ou faux STEP : erreur immédiate (pas de chargement infini)', async () => {
+  const fake = (name, text) => ({ name, arrayBuffer: async () => new TextEncoder().encode(text).buffer });
+  await assert.rejects(BZ.readRobotFile(fake('robot.obj', 'o cube')), /non reconnu/);
+  await assert.rejects(BZ.readRobotFile(fake('robot.step', 'solid nope')), /pas un vrai STEP/);
+  const m = await BZ.readRobotFile({ name: 'r.STL', arrayBuffer: async () => binaryStl(450, 450, 400) });
+  assert.deepStrictEqual(dims(m), [45, 45, 40]);
+});

@@ -22,7 +22,9 @@ Rien à installer et pas besoin d'Internet : l'appli marche aussi hors ligne, au
 ## Utilisation en 4 onglets
 
 1. **Robot**
-   - Importez votre robot en 3D (**STEP** `.step`/`.stp`, ou IGES). La lecture se fait en
+   - Importez votre robot en 3D : **STL** (le plus rapide, quelques secondes), **STEP**
+     (`.step`/`.stp`) ou IGES. Un STL n'a pas d'unité : l'appli la devine (souvent des mm) et vous
+     pouvez la corriger avec le menu « Unité du fichier STL ». Pour un STEP, la lecture se fait en
      arrière-plan, avec un bouton Annuler. Les petites pièces (vis, écrous…) sont retirées pour que
      l'affichage reste fluide.
    - Un aperçu 3D montre le robot, sa flèche **avant** (rouge) et le cube de départ de 18 in (jaune).
