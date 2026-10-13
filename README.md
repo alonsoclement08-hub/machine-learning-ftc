@@ -62,6 +62,14 @@ Le format Inventor est fermé : rien d'autre qu'Inventor ne sait le lire. Export
 
 Avec Onshape ou Fusion 360, faites clic droit puis Exporter > STEP.
 
+## Exporter un fichier robot léger
+
+- **STL** (le plus rapide, quelques secondes) : depuis Inventor, **Fichier > Exporter > Format CAO > STL**.
+  Dans les Options, choisissez la résolution **Basse** ou **Moyenne** et l'unité **mm**.
+- **STEP plus léger** : exportez en **AP214** plutôt qu'en AP242, qui ajoute des annotations (PMI).
+  Un gros STEP peut quand même prendre plusieurs minutes : environ 6 s par Mo sous Chrome, plus sous
+  Safari. L'appli affiche le temps estimé et ne s'arrête pas en cours de route.
+
 ## Installer le code sur le robot
 
 - **Java** : copiez `AutoBiobuzzIA.java` dans `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/`,

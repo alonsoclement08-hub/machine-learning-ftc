@@ -141,7 +141,8 @@
       // le worker ne démarre pas (navigateur qui le bloque) : on arrête au lieu d'attendre indéfiniment
       timers.push(setTimeout(() => { if (!gotMessage) fail(blockedError()); }, L.firstMessage));
       timers.push(setTimeout(() => { if (!engineReady) fail(blockedError()); }, L.engineReady));
-      timers.push(setTimeout(() => fail(new Error('La lecture du STEP dépasse 15 minutes : le fichier est trop lourd. Importez plutôt le STL du robot.')), L.total));
+      // pas d'abandon automatique : on demande seulement à l'utilisateur s'il veut continuer
+      timers.push(setTimeout(() => { if (BZ.onImportLong) BZ.onImportLong(); }, L.total));
       timers.push(setTimeout(() => onProgress && onProgress('Toujours en lecture… (astuce : un STL du robot se charge en quelques secondes)'), L.slowHint));
       w.onmessage = (e) => {
         const d = e.data;
@@ -219,6 +220,23 @@
   };
 
   BZ.ACCEPTED = ['step', 'stp', 'iges', 'igs', 'stl'];
+
+  // Temps de lecture estimé d'un STEP (s) : ~6 s/Mo mesuré sous Chrome, Safari ~3 fois plus lent.
+  BZ.isSafari = function () {
+    const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+    return /Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS/.test(ua);
+  };
+  BZ.estimateStepSeconds = function (bytes, safari) {
+    const mb = bytes / 1e6;
+    const s = Math.max(5, mb * 6) * (safari ? 3 : 1);
+    return { min: s * 0.7, max: s * 1.6 };
+  };
+  BZ.formatDuration = function (sec) {
+    sec = Math.round(sec);
+    if (sec < 60) return sec + ' s';
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return m + ' min' + (s ? ' ' + String(s).padStart(2, '0') + ' s' : '');
+  };
 
   BZ.readRobotFile = async function (file, onProgress) {
     const ext = file.name.split('.').pop().toLowerCase();

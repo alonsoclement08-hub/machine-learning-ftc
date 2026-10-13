@@ -365,6 +365,7 @@
 
   // ---------------- Import 3D ----------------
   let busyTimer = null;
+  let busyEstimate = null; // secondes estimées (pour l'affichage du chrono)
   function busy(on, text, cancellable) {
     $('busy').hidden = !on;
     if (text) $('busyText').textContent = text;
@@ -373,12 +374,33 @@
     $('busyTime').textContent = '';
     if (on) {
       const t0 = Date.now();
-      busyTimer = setInterval(() => { $('busyTime').textContent = Math.round((Date.now() - t0) / 1000) + ' s'; }, 500);
+      busyTimer = setInterval(() => {
+        const el = (Date.now() - t0) / 1000;
+        $('busyTime').textContent = BZ.formatDuration(el) + (busyEstimate ? ' / ~' + BZ.formatDuration(busyEstimate) : '');
+      }, 500);
+    } else {
+      busyEstimate = null;
+      $('busyLong').hidden = true;
     }
   }
   $('busyCancel').addEventListener('click', () => BZ.cancelRobotImport());
-  function modal(title, html) { $('modalTitle').textContent = title; $('modalBody').innerHTML = html; $('modal').hidden = false; }
-  $('modalClose').addEventListener('click', () => { $('modal').hidden = true; });
+  let modalResolve = null;
+  function modal(title, html) {
+    $('modalTitle').textContent = title; $('modalBody').innerHTML = html;
+    $('modalCancel').hidden = true; $('modalClose').textContent = 'OK';
+    $('modal').hidden = false;
+  }
+  // Fenêtre à deux boutons ; renvoie true si l'utilisateur valide.
+  function confirmModal(title, html, okLabel, cancelLabel) {
+    modal(title, html);
+    $('modalClose').textContent = okLabel; $('modalCancel').textContent = cancelLabel; $('modalCancel').hidden = false;
+    return new Promise((resolve) => { modalResolve = resolve; });
+  }
+  const closeModal = (v) => { $('modal').hidden = true; if (modalResolve) { const r = modalResolve; modalResolve = null; r(v); } };
+  $('modalClose').addEventListener('click', () => closeModal(true));
+  $('modalCancel').addEventListener('click', () => closeModal(false));
+  BZ.onImportLong = () => { $('busyLong').hidden = false; };
+  $('busyKeep').addEventListener('click', () => { $('busyLong').hidden = true; });
 
   const preview = new BZ.RobotPreview($('robotPreview'));
 
@@ -428,7 +450,23 @@
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    const isStep = ['step', 'stp', 'iges', 'igs'].indexOf(ext) >= 0;
+    let est = null;
+    if (isStep) {
+      est = BZ.estimateStepSeconds(file.size, BZ.isSafari());
+      const mb = (file.size / 1e6).toFixed(0);
+      if (file.size > 20e6) {
+        const go = await confirmModal('Ce fichier STEP est lourd',
+          `<p><b>${file.name}</b> fait <b>${mb} Mo</b> : sa lecture devrait prendre environ <b>${BZ.formatDuration(est.min)} à ${BZ.formatDuration(est.max)}</b>` +
+          (BZ.isSafari() ? ' (Safari est plus lent que Chrome)' : '') + '.</p>' +
+          '<p>Le plus rapide : importer le <b>STL</b> du robot (quelques secondes). Depuis Inventor : Fichier &gt; Exporter &gt; Format CAO &gt; <b>STL</b>, résolution basse, unités mm.</p>',
+          'Lire quand même', 'Annuler');
+        if (!go) return;
+      }
+    }
     busy(true, `Lecture de ${file.name}…`, true);
+    if (est) busyEstimate = (est.min + est.max) / 2;
     try {
       const m = await BZ.readRobotFile(file, (txt) => { $('busyText').textContent = txt; });
       robotModel = m;

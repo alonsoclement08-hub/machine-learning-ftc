@@ -12,7 +12,7 @@
     <span class="logo" aria-hidden="true">🐝</span>
     <div>
       <h1>BIOBUZZ Auto IA</h1>
-      <p class="sub">FTC 2026-2027 · l'IA cherche le meilleur AUTO de 30 s pour votre robot · <span class="mono" id="appVersion">v3 · 13/10</span></p>
+      <p class="sub">FTC 2026-2027 · l'IA cherche le meilleur AUTO de 30 s pour votre robot · <span class="mono" id="appVersion">v4 · 13/10</span></p>
     </div>
   </div>
   <div class="score-strip" id="scoreStrip">
@@ -260,10 +260,10 @@
   <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <h2 id="modalTitle"></h2>
     <div id="modalBody"></div>
-    <div class="row end"><button class="btn primary" id="modalClose" type="button">OK</button></div>
+    <div class="row end"><button class="btn" id="modalCancel" type="button" hidden>Annuler</button><button class="btn primary" id="modalClose" type="button">OK</button></div>
   </div>
 </div>
-<div id="busy" class="busy" hidden><div class="spinner"></div><p id="busyText">Chargement…</p><p id="busyTime" class="mono"></p><button class="btn" id="busyCancel" type="button" hidden>Annuler</button></div>
+<div id="busy" class="busy" hidden><div class="spinner"></div><p id="busyText">Chargement…</p><p id="busyTime" class="mono"></p><div id="busyLong" class="busy-long" hidden><p>La lecture est longue. Elle continue en arrière-plan : vous pouvez attendre ou annuler (et importer plutôt le STL du robot, qui se charge en quelques secondes).</p><button class="btn primary" id="busyKeep" type="button">Continuer à attendre</button></div><button class="btn" id="busyCancel" type="button" hidden>Annuler</button></div>
 
 <script src="vendor/three.min.js"></script>
 <script src="vendor/OrbitControls.js"></script>
