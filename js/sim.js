@@ -42,6 +42,12 @@
   };
 
   // Probabilité qu'une balle tirée depuis (x, y) dans la direction `aim` entre dans la CELL `cell`.
+  // Durée de vol d'une balle (s) : la balle compte quand elle arrive dans la CELL.
+  BZ.FLIGHT = 0.55;
+  // Angle max entre la direction CELL -> tireur et la normale de l'ouverture : la CELL est
+  // fermée sur le dessus et l'arrière, on ne peut marquer que par l'ouverture (côté avant).
+  BZ.OPEN_HALF_ANGLE = (65 * Math.PI) / 180;
+
   BZ.hitProb = function (world, robot, x, y, aim, cell) {
     const rd = world.rd;
     const d = G.dist(x, y, cell.x, cell.y);
@@ -49,7 +55,33 @@
     const a = Math.atan2(cell.y - y, cell.x - x);
     const tolA = Math.atan2(7, d); // ouverture utile de la CELL ~ 20 in de large
     if (Math.abs(G.wrap(a - aim)) > tolA) return 0;
+    if (cell.normal) {
+      const back = Math.atan2(y - cell.y, x - cell.x); // direction CELL -> tireur
+      const n = Math.atan2(cell.normal[1], cell.normal[0]);
+      if (Math.abs(G.wrap(back - n)) > BZ.OPEN_HALF_ANGLE) return 0; // derrière la CELL : la balle tape le dessus
+    }
     return Math.max(0, Math.min(1, robot.lanceur.precision));
+  };
+
+  // Déroulé d'un match pour l'animation : pour chaque tir, la balle entre-t-elle, dans quelle CELL,
+  // et à quel moment la HIVE bascule. rng = null : scénario nominal (chaque tir possible réussit).
+  BZ.shotOutcomes = function (result, world, robot, game, rng) {
+    const out = { shots: [], tips: [] };
+    if (!result) return out;
+    let fill = world.startNectar, tips = 0;
+    for (const s of result.shots) {
+      if (s.t > game.dureeAuto) break;
+      const cellIdx = tips % 2;
+      const p = BZ.hitProb(world, robot, s.x, s.y, s.aim, world.cellTargets[cellIdx]);
+      const hit = rng ? rng() < p : p > 0;
+      const tArr = s.t + BZ.FLIGHT;
+      out.shots.push(Object.assign({}, s, { hit, cellIdx, tArr, slot: hit ? fill : -1 }));
+      if (hit) {
+        fill++;
+        if (fill >= game.seuilBascule) { fill = 0; tips++; out.tips.push(tArr); }
+      }
+    }
+    return out;
   };
 
   function Sim(world, planner, robot, game) {
@@ -191,7 +223,7 @@
         for (let b = 0; b < n; b++) {
           st.shots.push({ t: tFeed0 + ((b + 1) * robot.lanceur.msParBalle) / 1000, x: st.x, y: st.y, aim: G.wrap(st.h + rd.tirSens) });
           st.fill++;
-          if (st.fill >= game.seuilBascule) { st.tipsBelief++; st.fill = 0; st.events.push({ t: st.shots[st.shots.length - 1].t, type: 'tip' }); }
+          if (st.fill >= game.seuilBascule) { st.tipsBelief++; st.fill = 0; st.events.push({ t: st.shots[st.shots.length - 1].t + BZ.FLIGHT, type: 'tip' }); }
         }
         st.held = 0;
         // on n'éteint le lanceur que si on ne retire pas juste après
@@ -291,7 +323,7 @@
       if (!R || R.points === 0) internal += 1;
     }
     const expected = BZ.POINTS.LEAVE * (leave ? 1 : 0) + BZ.POINTS.PARK * (park ? 1 : 0) + BZ.POINTS.TIP * eTips;
-    const nominalTips = st.events.filter((e) => e.type === 'tip' && e.t <= T).length;
+    const nominalTips = BZ.shotOutcomes({ shots: st.shots }, world, robot, game, null).tips.length;
     const marge = Math.max(0, endT - (T - game.margeSecurite));
     let fitness = expected - 3 * penalty - 25 * internal - 15 * marge - 0.05 * endT;
     if (st.faults.G304) fitness -= 1000;

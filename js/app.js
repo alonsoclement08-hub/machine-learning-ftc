@@ -26,7 +26,9 @@
   let training = false;
   let playing = false;
   let tNow = 0;
-  let robotModel = null; // modèle 3D importé {name, meshes, up, fwd}
+  let robotModel = null; // modèle 3D importé {name, meshes, rot}
+  let robotTop = null; // silhouette vue de dessus (vue 2D)
+  let startHeadingDeg = 0; // orientation pendant le placement du départ
   let codeShown = 'java';
 
   const persist = () => {
@@ -66,6 +68,7 @@
     readForm($('robotForm'), robot);
     persist();
     showRobotWarnings();
+    if (!robotModel) preview.show(null, robot);
     invalidate();
   });
   $('gameForm').addEventListener('input', () => {
@@ -140,9 +143,26 @@
     return currentWorld;
   }
 
+  // Déroulé des tirs pour l'animation (nominal, ou tiré au hasard si « match aléatoire »).
+  let randomSeed = 1;
+  function outcomesFor(result, world) {
+    if (!result) return null;
+    const rng = $('randomMatch').checked ? G.rng(randomSeed) : null;
+    return BZ.shotOutcomes(result, world, robot, game, rng);
+  }
+
+  // Pose affichée quand il n'y a pas encore de plan : départ imposé, sinon un départ légal.
+  function idlePose(world) {
+    if (game.departImpose) return game.departImpose;
+    const starts = BZ.legalStarts(world, 6);
+    return starts.find((s) => Math.abs(s.h) < 1e-6) || starts[0] || null;
+  }
+
   function pushState(extra) {
+    const world = worldNow();
     const st = Object.assign({
-      alliance: game.alliance, robot, game, rd: BZ.robotDerived(robot), world: worldNow(), result: best,
+      alliance: game.alliance, robot, game, rd: BZ.robotDerived(robot), world, result: best,
+      outcomes: outcomesFor(best, world), idlePose: best ? null : idlePose(world), robotTop,
     }, extra || {});
     view2d.setState(st);
     if (view3d.ready) view3d.setState(st);
@@ -273,112 +293,163 @@
     view2d.mode = mode;
     $('placeStart').classList.toggle('armed', mode === 'start');
     $('drawPartner').classList.toggle('armed', mode === 'partner');
-    $('constraintStatus').textContent = mode === 'start' ? 'Cliquez près d\'un mur de votre côté du terrain (vue 2D).'
+    $('constraintStatus').textContent = mode === 'start' ? 'Bougez la souris sur le terrain : R/E ou Q pour tourner, clic pour poser.'
       : mode === 'partner' ? 'Glissez sur le terrain pour dessiner la zone du partenaire.' : constraintText();
     if (mode) document.querySelector('.segbtn[data-view="2d"]').click();
+    if (mode !== 'start') pushState();
   }
   function constraintText() {
     const a = [];
-    a.push(game.departImpose ? 'Départ imposé.' : 'Départ choisi par l\'IA.');
+    a.push(game.departImpose ? 'Départ imposé par vous.' : 'Départ choisi par l\'IA.');
     if (game.zonePartenaire) a.push('Zone partenaire définie.');
     return a.join(' ');
   }
-  $('placeStart').addEventListener('click', () => setMode(view2d.mode === 'start' ? null : 'start'));
+  $('placeStart').addEventListener('click', () => {
+    if (game.departImpose) startHeadingDeg = Math.round(G.deg(game.departImpose.h));
+    setMode(view2d.mode === 'start' ? null : 'start');
+  });
   $('drawPartner').addEventListener('click', () => setMode(view2d.mode === 'partner' ? null : 'partner'));
   $('clearStart').addEventListener('click', () => { game.departImpose = null; persist(); setMode(null); invalidate(); });
   $('clearPartner').addEventListener('click', () => { game.zonePartenaire = null; persist(); setMode(null); invalidate(); });
 
-  view2d.onPick = (ev) => {
-    if (ev.type === 'partner') {
-      game.zonePartenaire = ev.zone; persist(); setMode(null); invalidate();
-      return;
-    }
-    // départ : on colle le robot au mur le plus proche avec l'orientation choisie
+  // Colle le robot au mur le plus proche de notre côté, avec l'orientation choisie.
+  let lastHover = null;
+  function snapStart(x, y) {
     const w = worldNow(), rd = w.rd, half = w.half;
-    const h = G.rad(parseFloat($('startHeading').value));
+    const h = G.rad(startHeadingDeg);
     const ex = Math.abs(Math.cos(h)) > 0.5 ? rd.hl : rd.hw, ey = Math.abs(Math.cos(h)) > 0.5 ? rd.hw : rd.hl;
-    let { x, y } = ev;
     const dl = x + half, db = y + half, dt = half - y;
     const m = Math.min(dl, db, dt);
     if (m === dl) x = -half + ex; else if (m === db) y = -half + ey; else y = half - ey;
     x = Math.max(-half + ex, Math.min(-ex, x));
     y = Math.max(-half + ey, Math.min(half - ey, y));
-    const s = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, h };
-    const errs = BZ.checkStart(w, s);
-    if (errs.length) {
-      $('constraintStatus').textContent = 'Départ refusé (G304) : ' + errs.join(' ; ');
-      pushState({ startPreview: { pose: s, ok: false } });
+    const s = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, h: G.wrap(h) };
+    return { pose: s, errs: BZ.checkStart(w, s) };
+  }
+  function previewStart(x, y) {
+    lastHover = { x, y };
+    const r = snapStart(x, y);
+    $('constraintStatus').textContent = r.errs.length ? '✗ Départ interdit (G304) : ' + r.errs.join(' ; ') : '✓ Départ légal : cliquez pour le poser.';
+    pushState({ startPreview: { pose: r.pose, ok: !r.errs.length } });
+    return r;
+  }
+  function rotateStart(d) {
+    startHeadingDeg = ((startHeadingDeg + d) % 360 + 540) % 360 - 180;
+    if (view2d.mode === 'start' && lastHover) previewStart(lastHover.x, lastHover.y);
+    else if (game.departImpose) {
+      // départ déjà posé : on le tourne sur place (en le recollant au mur)
+      const r = snapStart(game.departImpose.x, game.departImpose.y);
+      if (!r.errs.length) { game.departImpose = r.pose; persist(); invalidate(); }
+      else $('constraintStatus').textContent = '✗ Impossible de tourner ici (G304) : ' + r.errs.join(' ; ');
+    }
+  }
+  $('rotLeft').addEventListener('click', () => rotateStart(90));
+  $('rotRight').addEventListener('click', () => rotateStart(-90));
+  document.addEventListener('keydown', (e) => {
+    if (view2d.mode !== 'start' || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    if (e.key === 'r' || e.key === 'R' || e.key === 'e' || e.key === 'E') { rotateStart(-90); e.preventDefault(); }
+    else if (e.key === 'q' || e.key === 'Q') { rotateStart(90); e.preventDefault(); }
+    else if (e.key === 'Escape') setMode(null);
+  });
+
+  view2d.onHover = (ev) => { if (view2d.mode === 'start') previewStart(ev.x, ev.y); };
+  view2d.onPick = (ev) => {
+    if (ev.type === 'partner') {
+      game.zonePartenaire = ev.zone; persist(); setMode(null); invalidate();
       return;
     }
-    game.departImpose = s; persist(); setMode(null); invalidate();
+    const r = previewStart(ev.x, ev.y);
+    if (r.errs.length) return;
+    game.departImpose = r.pose; persist(); setMode(null); invalidate();
   };
 
   // ---------------- Import 3D ----------------
-  function busy(on, text) { $('busy').hidden = !on; if (text) $('busyText').textContent = text; }
+  let busyTimer = null;
+  function busy(on, text, cancellable) {
+    $('busy').hidden = !on;
+    if (text) $('busyText').textContent = text;
+    $('busyCancel').hidden = !cancellable;
+    clearInterval(busyTimer);
+    $('busyTime').textContent = '';
+    if (on) {
+      const t0 = Date.now();
+      busyTimer = setInterval(() => { $('busyTime').textContent = Math.round((Date.now() - t0) / 1000) + ' s'; }, 500);
+    }
+  }
+  $('busyCancel').addEventListener('click', () => BZ.cancelRobotImport());
   function modal(title, html) { $('modalTitle').textContent = title; $('modalBody').innerHTML = html; $('modal').hidden = false; }
   $('modalClose').addEventListener('click', () => { $('modal').hidden = true; });
 
-  function showImported() {
+  const preview = new BZ.RobotPreview($('robotPreview'));
+
+  // Applique le modèle : dimensions mesurées -> robot, aperçu, vue 3D, silhouette 2D.
+  function applyModel(updateDims) {
+    const dimInputs = document.querySelectorAll('#robotForm input.dim');
     if (!robotModel) {
-      $('importAxes').hidden = true;
+      robotTop = null;
+      dimInputs.forEach((i) => { i.readOnly = false; });
+      $('dimsHint').textContent = 'Importez le modèle 3D pour mesurer automatiquement.';
       $('importStatus').textContent = 'Aucun modèle : le robot est affiché comme une boîte.';
+      $('importDims').textContent = '';
+      $('rotBar').hidden = true;
+      preview.show(null, robot);
       view3d.setRobotModel(null);
+      pushState();
       return;
     }
-    $('importAxes').hidden = false;
-    $('axisUp').value = robotModel.up; $('axisFwd').value = robotModel.fwd;
-    const d = BZ.robotModelDims(robotModel, robotModel.up, robotModel.fwd);
-    if (!d) { $('importDims').textContent = 'Axes « haut » et « avant » incompatibles.'; return; }
+    $('rotBar').hidden = false;
+    const d = BZ.robotModelDims(robotModel);
+    if (updateDims) {
+      robot.longueur_cm = Math.round(d.longueur * 10) / 10;
+      robot.largeur_cm = Math.round(d.largeur * 10) / 10;
+      robot.hauteur_cm = Math.round(d.hauteur * 10) / 10;
+      fillForm($('robotForm'), robot);
+      persist();
+      showRobotWarnings();
+    }
+    dimInputs.forEach((i) => { i.readOnly = true; });
+    $('dimsHint').textContent = 'Mesurées sur le modèle 3D (tournez-le avec les boutons ↻ si besoin).';
     const ok = d.longueur <= 45.72 && d.largeur <= 45.72 && d.hauteur <= 45.72;
-    $('importDims').innerHTML = `Mesuré : ${d.longueur.toFixed(1)} × ${d.largeur.toFixed(1)} × ${d.hauteur.toFixed(1)} cm (L × l × h) ` +
-      (ok ? '<span class="ok">✓ tient dans le cube de 18 in</span>' : '<b style="color:var(--red)">✗ dépasse le cube de 45,7 cm (R102)</b>');
-    $('importStatus').textContent = `Modèle : ${robotModel.name} (${robotModel.meshes.length} pièces)`;
+    $('importDims').innerHTML = `${d.longueur.toFixed(1)} × ${d.largeur.toFixed(1)} × ${d.hauteur.toFixed(1)} cm (longueur × largeur × hauteur) · ` +
+      (ok ? '<span class="ok">✓ tient dans le cube de 18 in</span>' : '<b style="color:var(--red)">✗ dépasse le cube de 45,7 cm (R102) : vérifiez l\'orientation</b>');
+    $('importStatus').textContent = `Modèle : ${robotModel.name}` + (robotModel.kept ? ` (${robotModel.kept} pièces gardées, ${robotModel.dropped} petites pièces retirées)` : '');
+    preview.show(BZ.buildRobotGroup(robotModel), robot);
+    robotTop = BZ.robotTopImage(robotModel);
     view3d.init();
-    view3d.setRobotModel(BZ.buildRobotGroup(robotModel, robotModel.up, robotModel.fwd));
+    view3d.setRobotModel(BZ.buildRobotGroup(robotModel));
+    if (updateDims) invalidate(); else pushState();
   }
 
   $('robotFile').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
-    busy(true, `Lecture de ${file.name}… (jusqu'à 1-2 min pour un gros robot)`);
-    await new Promise((r) => setTimeout(r, 50));
+    busy(true, `Lecture de ${file.name}…`, true);
     try {
-      const m = await BZ.readRobotFile(file);
-      // proposition d'axes : Z en haut sauf si le modèle est plus haut en Y (export Inventor)
-      m.up = 'z'; m.fwd = 'x';
-      const dz = BZ.robotModelDims(m, 'z', 'x'), dy = BZ.robotModelDims(m, 'y', 'x');
-      if (dy && dz && dz.hauteur > 1.3 * dy.hauteur && dy.hauteur > 0) { m.up = 'y'; m.fwd = 'x'; }
+      const m = await BZ.readRobotFile(file, (txt) => { $('busyText').textContent = txt; });
       robotModel = m;
       BZ.saveRobotModel(m);
-      showImported();
-      document.querySelector('.segbtn[data-view="3d"]').click();
+      applyModel(true);
     } catch (err) {
       if (err.inventor) modal('Fichier Inventor : exportez-le en STEP', BZ.INVENTOR_HELP);
-      else modal('Import impossible', `<p>${err.message || err}</p>`);
+      else if (!err.cancelled) modal('Import impossible', `<p>${err.message || err}</p>`);
     } finally {
       busy(false);
     }
   });
-  for (const id of ['axisUp', 'axisFwd']) {
-    $(id).addEventListener('change', () => {
-      if (!robotModel) return;
-      robotModel.up = $('axisUp').value; robotModel.fwd = $('axisFwd').value;
-      BZ.saveRobotModel(robotModel);
-      showImported();
-    });
-  }
-  $('useDims').addEventListener('click', () => {
+  document.querySelectorAll('#rotBar [data-rot]').forEach((b) => b.addEventListener('click', () => {
     if (!robotModel) return;
-    const d = BZ.robotModelDims(robotModel, robotModel.up, robotModel.fwd);
-    if (!d) return;
-    robot.longueur_cm = Math.round(d.longueur * 10) / 10;
-    robot.largeur_cm = Math.round(d.largeur * 10) / 10;
-    robot.hauteur_cm = Math.round(d.hauteur * 10) / 10;
-    fillForm($('robotForm'), robot);
-    persist(); showRobotWarnings(); invalidate();
+    BZ.rotateModel(robotModel, b.dataset.rot, 1);
+    BZ.saveRobotModel(robotModel);
+    applyModel(true);
+  }));
+  $('rotReset').addEventListener('click', () => {
+    if (!robotModel) return;
+    robotModel.rot = BZ.guessRotation(robotModel);
+    BZ.saveRobotModel(robotModel);
+    applyModel(true);
   });
-  $('robotClear').addEventListener('click', () => { robotModel = null; BZ.saveRobotModel(null); showImported(); });
+  $('robotClear').addEventListener('click', () => { robotModel = null; BZ.saveRobotModel(null); applyModel(false); });
 
   // ---------------- Robot JSON ----------------
   function download(name, text, type) {
@@ -436,7 +507,14 @@
   $('constraintStatus').textContent = constraintText();
   pushState();
   setTime(0);
-  BZ.loadRobotModel().then((m) => { if (m) { robotModel = m; showImported(); } else showImported(); });
+  BZ.loadRobotModel().then((m) => { robotModel = m; applyModel(false); });
+  $('randomMatch').addEventListener('change', () => {
+    randomSeed = (Date.now() & 0xffff) + 1;
+    $('animNote').textContent = $('randomMatch').checked
+      ? 'Animation : match tiré au hasard avec la précision du robot (décochez/recochez pour un autre tirage).'
+      : 'Animation : scénario où tous les tirs possibles entrent. Le score affiché est l\'espérance.';
+    pushState();
+  });
 
   // Accès pour les tests automatisés
   window.BZApp = {

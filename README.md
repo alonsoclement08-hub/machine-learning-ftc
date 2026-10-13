@@ -22,16 +22,30 @@ Rien à installer et pas besoin d'Internet : l'appli marche aussi hors ligne, au
 ## Utilisation en 4 onglets
 
 1. **Robot**
-   - Importez votre robot en 3D (**STEP** `.step`/`.stp`, ou IGES). L'appli mesure ses dimensions
-     et vérifie qu'il tient dans le cube de départ de 18 in (R102).
-   - Si le robot apparaît couché ou à l'envers, changez les axes « haut » et « avant ».
+   - Importez votre robot en 3D (**STEP** `.step`/`.stp`, ou IGES). La lecture se fait en
+     arrière-plan, avec un bouton Annuler. Les petites pièces (vis, écrous…) sont retirées pour que
+     l'affichage reste fluide.
+   - Un aperçu 3D montre le robot, sa flèche **avant** (rouge) et le cube de départ de 18 in (jaune).
+     Si le robot est couché ou mal orienté, tournez-le avec les boutons **↻ à plat**,
+     **↻ avant-arrière** et **↻ côté**.
+   - La longueur, la largeur et la hauteur sont **mesurées sur le modèle** et mises à jour à chaque
+     rotation. L'appli vérifie que le robot tient dans le cube de 18 in (R102).
+   - Le robot apparaît avec son vrai modèle dans la vue 3D, et en silhouette vue de dessus dans la
+     vue 2D.
    - Remplissez ensuite les caractéristiques : châssis mecanum ou tank, les 3 variables, le lanceur
      (distance de tir, précision, cadence), l'intake, et les noms des moteurs de votre configuration.
 2. **Match**
-   - Choisissez l'alliance et le nombre de balles qui font basculer la HIVE.
-   - Vous pouvez imposer une position de départ, ou dessiner une zone réservée à votre partenaire.
+   - Choisissez l'alliance, le nombre de balles qui font basculer la HIVE, et le nombre de NECTAR
+     déjà dans la CELL au départ (3 selon le manuel TU04).
+   - **Placer le robot** : bougez la souris sur le terrain, le robot se colle au mur le plus proche.
+     **R/E** ou **Q** (ou les boutons ⟲ ⟳) le tournent, un clic le pose. Un départ interdit (G304)
+     s'affiche en orange avec la raison.
+   - Vous pouvez aussi dessiner une zone réservée à votre partenaire.
 3. **Entraîner** : lancez l'IA. La courbe montre le meilleur score espéré, génération après
-   génération. Le bouton ▶ rejoue le meilleur plan en 2D ou en 3D.
+   génération. Le bouton ▶ rejoue le meilleur plan en 2D ou en 3D : les balles volent en arc
+   jusque dans la CELL, et la HIVE bascule quand elle est pleine. Les balles de la CELL tombent
+   alors au sol. Cochez **match aléatoire** pour voir un match où chaque tir réussit ou rate selon
+   la précision du robot.
 4. **Exporter** : téléchargez `AutoBiobuzzIA.java` ou `AutoBiobuzzIA.blk`. L'onglet affiche aussi où
    placer le robot au départ.
 
@@ -96,8 +110,13 @@ Les données viennent du **CAD officiel du terrain** (`am-5850 BIOBUZZ`, convert
   | G418 | sortir du POLLEN d'une FLOWER autrement que par le bas |
   | – | finir après 30 s |
 
-- **Score espéré** : chaque tir réussit avec la probabilité « précision », si la distance est bonne et
-  si le robot vise la bonne CELL. L'espérance des bascules est calculée exactement.
+- **HIVE** : modélisée à partir du CAD, avec un pivot à 43,95 in de haut et une bascule de 60°. La
+  CELL est fermée sur le dessus et l'arrière, et son ouverture regarde vers l'extérieur, inclinée de
+  30°. **On ne marque qu'en tirant du côté de l'ouverture** : en 2D, une flèche indique ce côté.
+  Après une bascule, c'est l'autre CELL qui est en haut, avec son ouverture de l'autre côté.
+- **Score espéré** : chaque tir réussit avec la probabilité « précision », à condition que la
+  distance soit bonne, que le robot vise la bonne CELL et qu'il soit du côté de l'ouverture.
+  L'espérance des bascules est calculée exactement.
 
 **Paramètres à vérifier sur un vrai terrain** :
 - le nombre de balles qui font basculer la HIVE (6 par défaut, NECTAR compris) ;

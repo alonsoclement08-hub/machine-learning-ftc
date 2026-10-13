@@ -87,8 +87,11 @@
       hivePoly,
       obstacles,
       loading: FIELD.loadingZone.red,
-      cellTargets: [cells.up, cells.down], // [0] = CELL du haut au départ, [1] = après une bascule
-      startNectar: cells.startNectar || 3,
+      // [0] = CELL du haut au départ, [1] = après une bascule. `normal` = côté de l'ouverture.
+      cellTargets: cells.states
+        ? cells.states.map((s) => Object.assign({}, s.open, { normal: s.normal }))
+        : [cells.up, cells.down],
+      startNectar: game.nectarDepart !== undefined && game.nectarDepart !== null ? game.nectarDepart : (cells.startNectar || 3),
       rd,
     };
   };
@@ -134,6 +137,9 @@
     if (viol.length) errs.push('chevauche : ' + viol.join(', '));
     if (!BZ.touchesWall(world, s.x, s.y, s.h)) errs.push('doit toucher le mur du terrain');
     if (BZ.inLoadingZone(world, s.x, s.y, s.h)) errs.push('ne doit pas être dans la LOADING ZONE');
+    // on ne pose pas le robot sur les POLLEN du GARDEN
+    const poly = G.rectCorners(s.x, s.y, s.h, world.rd.hl, world.rd.hw);
+    if (world.garden.balls.some((b) => G.circlePolyOverlap(b.x, b.y, 1.4, poly))) errs.push('ne doit pas être posé sur les POLLEN du GARDEN');
     return errs;
   };
 

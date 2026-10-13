@@ -35,10 +35,8 @@
     for (let x = -half; x <= 0; x += 3) {
       for (let y = -half; y <= half; y += 3) {
         if (!this.planner.isFree(x, y)) continue;
-        const ok = this.world.cellTargets.some((c) => {
-          const d = G.dist(x, y, c.x, c.y);
-          return d >= this.rd.tirMin && d <= this.rd.tirMax;
-        });
+        // à bonne distance ET du côté de l'ouverture d'une des deux CELLS
+        const ok = this.world.cellTargets.some((c) => BZ.hitProb(this.world, this.robot, x, y, Math.atan2(c.y - y, c.x - x), c) > 0);
         if (ok) spots.push([x, y]);
       }
     }

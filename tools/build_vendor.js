@@ -18,9 +18,13 @@ fs.copyFileSync(path.join(NM, 'three/LICENSE'), path.join(V, 'LICENSE.three.txt'
 const occtDir = path.join(NM, 'occt-import-js/dist');
 fs.copyFileSync(path.join(occtDir, 'occt-import-js.js'), path.join(V, 'occt-import-js.js'));
 const wasm = fs.readFileSync(path.join(occtDir, 'occt-import-js.wasm'));
+// On y joint aussi le source JS sous forme de texte, pour lancer la lecture dans un Web Worker
+// créé depuis un Blob (seule façon d'avoir un worker en file://).
+const occtSrc = fs.readFileSync(path.join(occtDir, 'occt-import-js.js'), 'utf8');
 fs.writeFileSync(path.join(V, 'occt-import-js.wasm.js'),
-  '// occt-import-js.wasm encodé en base64 (chargé seulement quand on importe un robot).\n' +
-  'window.OCCT_WASM_B64 = "' + wasm.toString('base64') + '";\n');
+  '// occt-import-js : wasm en base64 + source JS (chargés seulement quand on importe un robot).\n' +
+  'window.OCCT_WASM_B64 = "' + wasm.toString('base64') + '";\n' +
+  'window.OCCT_JS_SRC = ' + JSON.stringify(occtSrc) + ';\n');
 fs.copyFileSync(path.join(occtDir, 'license.occt-import-js.txt'), path.join(V, 'LICENSE.occt-import-js.txt'));
 fs.copyFileSync(path.join(occtDir, 'license.occt.txt'), path.join(V, 'LICENSE.occt.txt'));
 for (const f of fs.readdirSync(V)) console.log(f, (fs.statSync(path.join(V, f)).size / 1e6).toFixed(2) + ' Mo');

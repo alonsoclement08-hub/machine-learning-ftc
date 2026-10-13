@@ -39,19 +39,35 @@
     scene.add(sun);
 
     // Terrain
+    this.hiveGroups = {};
     if (root.FIELD_MESH) {
       const M = root.FIELD_MESH;
-      for (const g of M.groups) {
+      const meshOf = (g, dz) => {
         const q = new Int16Array(b64ToBuf(g.pos));
         const pos = new Float32Array(q.length);
-        for (let i = 0; i < q.length; i++) pos[i] = q[i] * M.scale;
+        for (let i = 0; i < q.length; i++) pos[i] = q[i] * M.scale - (i % 3 === 2 ? dz : 0);
         const idx = g.idx32 ? new Uint32Array(b64ToBuf(g.idx)) : new Uint16Array(b64ToBuf(g.idx));
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
         geo.setIndex(new THREE.BufferAttribute(idx, 1));
         geo.computeVertexNormals();
         const mat = new THREE.MeshLambertMaterial({ color: new THREE.Color(g.color[0], g.color[1], g.color[2]), side: THREE.DoubleSide });
-        scene.add(new THREE.Mesh(geo, mat));
+        return new THREE.Mesh(geo, mat);
+      };
+      for (const g of M.groups) scene.add(meshOf(g, 0));
+      // HIVES articulées : un groupe par alliance, centré sur l'axe de pivot (parallèle à X)
+      if (M.hives) {
+        const piv = M.pivot || { y: 0, z: 43.95 };
+        for (const col of ['red', 'blue']) {
+          const pivot = new THREE.Group();
+          pivot.position.set(0, piv.y, piv.z);
+          const inner = new THREE.Group();
+          inner.position.set(0, -piv.y, 0);
+          for (const g of M.hives[col]) inner.add(meshOf(g, piv.z));
+          pivot.add(inner);
+          scene.add(pivot);
+          this.hiveGroups[col] = pivot;
+        }
       }
     }
 
@@ -62,16 +78,23 @@
     this.matRed = new THREE.MeshLambertMaterial({ color: 0xd7263d });
     this.matBlue = new THREE.MeshLambertMaterial({ color: 0x1b6fd1 });
     this.ballPool = [];
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 90; i++) {
       const m = new THREE.Mesh(sphere, this.matPollen);
       m.visible = false; scene.add(m); this.ballPool.push(m);
     }
-    this.nectarMeshes = [];
+    // NECTAR : ceux des ALLIANCE AREAS (décor) + un lot pour les CELLS (positionnés à chaque image)
     for (const col of ['red', 'blue']) {
       for (const b of FIELD.nectar[col]) {
-        if (Math.abs(b.x) > FIELD.half) continue; // les NECTAR de l'ALLIANCE AREA
+        if (Math.abs(b.x) <= FIELD.half) continue;
         const m = new THREE.Mesh(sphereN, col === 'red' ? this.matRed : this.matBlue);
         m.position.set(b.x, b.y, b.z); scene.add(m);
+      }
+    }
+    this.nectarPool = { red: [], blue: [] };
+    for (const col of ['red', 'blue']) {
+      for (let i = 0; i < 12; i++) {
+        const m = new THREE.Mesh(sphereN, col === 'red' ? this.matRed : this.matBlue);
+        m.visible = false; scene.add(m); this.nectarPool[col].push(m);
       }
     }
 
@@ -133,7 +156,7 @@
     this.boxMesh.material.color.set(blue ? 0x1b6fd1 : 0xd7263d);
     this.arrow.position.set(rd.hl + 2, 0, st.robot.hauteur_cm / 2.54 + 1);
     const rs = st.world ? BZ.replayState(st.result, st.world, st.game, this.t) : null;
-    const pose = (rs && rs.pose) || (st.result ? st.result.plan.start : null);
+    const pose = (st.startPreview && st.startPreview.pose) || (rs && rs.pose) || (st.result ? st.result.plan.start : st.idlePose);
     this.robotGroup.visible = !!pose;
     if (pose) {
       const [x, y] = abs(pose.x, pose.y);
@@ -160,17 +183,23 @@
       }
       for (const b of balls) put(b.x, b.y, 1.4);
     }
-    if (rs) {
-      for (const fl of rs.flying) {
-        const [x0, y0] = abs(fl.from.x, fl.from.y), [x1, y1] = abs(fl.to.x, fl.to.y);
-        const u = fl.u;
-        put(x0 + (x1 - x0) * u, y0 + (y1 - y0) * u, 14 + (fl.to.z - 14) * u + 25 * Math.sin(Math.PI * u));
-      }
-      if (pose) {
-        const [x, y] = abs(pose.x, pose.y);
-        for (let i = 0; i < Math.max(0, rs.held); i++) put(x, y, st.robot.hauteur_cm / 2.54 + 1.6 + i * 2.9);
+    if (rs && pose) {
+      const [x, y] = abs(pose.x, pose.y);
+      for (let i = 0; i < Math.max(0, rs.held); i++) put(x, y, st.robot.hauteur_cm / 2.54 + 1.6 + i * 2.9);
+    }
+    // HIVE : bascule + balles dans les CELLS / en vol / au sol
+    const hs = BZ.hiveScene(FIELD, st, this.t);
+    for (const col of ['red', 'blue']) if (this.hiveGroups[col]) this.hiveGroups[col].rotation.x = hs.angle[col];
+    const nk = { red: 0, blue: 0 };
+    for (const b of hs.balls) {
+      if (b.kind === 'pollen') put(b.x, b.y, b.z);
+      else {
+        const col = b.kind === 'nectar-red' ? 'red' : 'blue';
+        const m = this.nectarPool[col][nk[col]++];
+        if (m) { m.visible = true; m.position.set(b.x, b.y, b.z); }
       }
     }
+    for (const col of ['red', 'blue']) for (let i = nk[col]; i < this.nectarPool[col].length; i++) this.nectarPool[col][i].visible = false;
     for (; k < this.ballPool.length; k++) this.ballPool[k].visible = false;
     // Trajet
     if (st.result) {

@@ -66,8 +66,9 @@
     const dpr = window.devicePixelRatio || 1;
     let [x, y] = this.toField((e.clientX - r.left) * dpr, (e.clientY - r.top) * dpr);
     [x, y] = this.abs(x, y); // retour au repère rouge (la rotation de 180° est sa propre inverse)
-    if (this.mode === 'start' && kind === 'down') {
-      if (this.onPick) this.onPick({ type: 'start', x, y });
+    if (this.mode === 'start') {
+      if (kind === 'down' && this.onPick) this.onPick({ type: 'start', x, y });
+      else if (kind === 'move' && this.onHover) this.onHover({ x, y });
     } else if (this.mode === 'partner') {
       if (kind === 'down') { this.drag = { x0: x, y0: y, x1: x, y1: y }; this.c.setPointerCapture(e.pointerId); }
       else if (this.drag && kind === 'move') { this.drag.x1 = x; this.drag.y1 = y; this.draw(); }
@@ -80,9 +81,9 @@
     }
   };
 
-  // État du jeu à l'instant t pendant le rejeu (scénario nominal : tous les tirs entrent).
+  // État du robot et des sources à l'instant t pendant le rejeu (la HIVE est gérée par BZ.hiveScene).
   BZ.replayState = function (result, world, game, t) {
-    const out = { pose: null, held: game.prechargees, tips: 0, fill: world.startNectar, avail: {}, flying: [] };
+    const out = { pose: null, held: game.prechargees, avail: {} };
     out.avail.jardin = world.garden.balls.length;
     for (const f of world.flowers) out.avail[f.id] = f.pollen;
     if (!result) return out;
@@ -90,19 +91,7 @@
     for (const e of result.events) {
       if (e.type === 'pickup' && e.t <= t) { out.avail[e.src] -= e.n; out.held += e.n; }
     }
-    const tipTimes = result.events.filter((e) => e.type === 'tip').map((e) => e.t);
-    for (const s of result.shots) {
-      if (s.t <= t) out.held -= 1;
-      const flight = 0.45;
-      if (s.t <= t && t < s.t + flight) {
-        const tipsBefore = tipTimes.filter((tt) => tt < s.t).length;
-        out.flying.push({ from: s, to: world.cellTargets[tipsBefore % 2], u: (t - s.t) / flight });
-      }
-      if (s.t + 0.45 <= t) {
-        out.fill += 1;
-        if (out.fill >= game.seuilBascule) { out.fill = 0; out.tips += 1; }
-      }
-    }
+    for (const s of result.shots) if (s.t <= t) out.held -= 1;
     return out;
   };
 
@@ -168,7 +157,8 @@
     const res = st.result;
     const rs = st.world ? BZ.replayState(res, st.world, st.game, this.t) : null;
 
-    // HIVE : châssis en A + CELLS
+    // HIVE : châssis en A + CELLS (la CELL du haut est foncée, avec une flèche vers son ouverture)
+    const hs = BZ.hiveScene(F, Object.assign({}, st, { outcomes: st.outcomes }), this.t);
     ctx.fillStyle = COL.hive; ctx.strokeStyle = '#555'; ctx.lineWidth = 1;
     for (const tri of [F.hive.redFrame, F.hive.blueFrame]) {
       ctx.beginPath(); tri.forEach((p, i) => (i ? ctx.lineTo(...P(p[0], p[1])) : ctx.moveTo(...P(p[0], p[1])))); ctx.closePath();
@@ -177,20 +167,31 @@
     ctx.beginPath(); ctx.moveTo(...P(-12.2, 0)); ctx.lineTo(...P(12.2, 0)); ctx.strokeStyle = '#555'; ctx.lineWidth = Math.max(1, s * 0.8); ctx.stroke();
     for (const col of ['red', 'blue']) {
       const cells = F.hive.cells[col];
-      const ours = col === alliance;
-      let upIdx = 0, fill = cells.startNectar;
-      if (ours && rs) { upIdx = rs.tips % 2; fill = rs.fill; }
-      const targets = [cells.up, cells.down];
-      targets.forEach((c, i) => {
-        const sy = Math.sign(c.y);
-        const up = i === upIdx;
+      const tipA = (F.hive.tipAngle && F.hive.tipAngle[col]) || 1;
+      const frac = Math.max(0, Math.min(1, hs.angle[col] / tipA)); // 0 = état de départ, 1 = basculée
+      cells.states.forEach((cs, i) => {
+        const o = cs.open, sy = Math.sign(o.y);
+        const upness = i === 0 ? 1 - frac : frac;
         ctx.fillStyle = col === 'red' ? COL.red : COL.blue;
-        ctx.globalAlpha = up ? 0.85 : 0.25;
-        ctx.fillRect(...rect(c.x - 10, Math.min(sy * 2, sy * 20), c.x + 10, Math.max(sy * 2, sy * 20)));
+        ctx.globalAlpha = 0.22 + 0.63 * upness;
+        // emprise de la CELL vue de dessus : du pivot jusqu'à l'ouverture
+        ctx.fillRect(...rect(o.x - 10, Math.min(sy * 2, o.y + sy * 2), o.x + 10, Math.max(sy * 2, o.y + sy * 2)));
         ctx.globalAlpha = 1;
-        if (up) {
-          ctx.fillStyle = '#fff'; ctx.font = `700 ${Math.round(s * 3.2)}px system-ui`;
-          ctx.fillText(`${fill}/${st.game ? st.game.seuilBascule : 6}`, ...P(c.x, sy * 11 - 1.2));
+        if (upness > 0.5) {
+          // flèche : côté de l'ouverture (on ne marque qu'en tirant de ce côté)
+          const n = cs.normal;
+          const a0 = P(o.x, o.y + n[1] * 3), a1 = P(o.x, o.y + n[1] * 11);
+          ctx.strokeStyle = col === 'red' ? COL.red : COL.blue; ctx.lineWidth = Math.max(2, s * 0.9);
+          ctx.beginPath(); ctx.moveTo(...a1); ctx.lineTo(...a0); ctx.stroke();
+          const hd = 2.4 * s;
+          ctx.beginPath(); ctx.moveTo(...a0);
+          ctx.lineTo(a0[0] - hd * 0.6, a0[1] + Math.sign(a1[1] - a0[1]) * hd);
+          ctx.lineTo(a0[0] + hd * 0.6, a0[1] + Math.sign(a1[1] - a0[1]) * hd);
+          ctx.closePath(); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
+          if (col === alliance) {
+            ctx.fillStyle = '#fff'; ctx.font = `700 ${Math.round(s * 3.2)}px system-ui`;
+            ctx.fillText(`${hs.fill}/${st.game ? st.game.seuilBascule : 6}`, ...P(o.x, o.y / 2 - 1.2));
+          }
         }
       });
     }
@@ -245,18 +246,18 @@
       // fantôme de départ
       this.drawRobot(res.plan.start, 0.25, alliance);
     }
-    if (st.startPreview) this.drawRobot(st.startPreview.pose, 0.45, alliance, st.startPreview.ok ? null : '#ff6a00');
+    if (st.startPreview) this.drawRobot(st.startPreview.pose, 0.85, alliance, st.startPreview.ok ? null : '#ff6a00');
 
-    // Balles en vol
-    if (rs) {
-      for (const fl of rs.flying) {
-        const [x0, y0] = this.abs(fl.from.x, fl.from.y), [x1, y1] = this.abs(fl.to.x, fl.to.y);
-        const u = fl.u;
-        ball(x0 + (x1 - x0) * u, y0 + (y1 - y0) * u, 1.4 + 1.2 * Math.sin(Math.PI * u), COL.pollen, COL.pollenEdge);
-      }
-    }
+    // Balles de la HIVE (dans les CELLS, en vol, au sol), de la plus basse à la plus haute
+    const kinds = { pollen: [COL.pollen, COL.pollenEdge], 'nectar-red': [COL.red, '#7a1020'], 'nectar-blue': [COL.blue, '#0d3f7a'] };
+    hs.balls.slice().sort((a, b) => a.z - b.z).forEach((b) => {
+      const k = kinds[b.kind] || kinds.pollen;
+      const r = (b.kind === 'pollen' ? 1.4 : 1.8) * (1 + Math.min(1.2, Math.max(0, b.z - 10) / 60));
+      ball(b.x, b.y, r, k[0], b.miss ? '#ff6a00' : k[1]);
+    });
     // Robot
     if (rs && rs.pose) this.drawRobot(rs.pose, 1, alliance, null, rs.held);
+    else if (!res && st.idlePose && !st.startPreview) this.drawRobot(st.idlePose, 1, alliance, null, st.game ? st.game.prechargees : 4);
   };
 
   Field2D.prototype.drawRobot = function (pose, alpha, alliance, color, held) {
@@ -267,8 +268,22 @@
     const pts = G.rectCorners(x, y, h, st.rd.hl, st.rd.hw).map((p) => this.toScreen(p[0], p[1]));
     ctx.globalAlpha = alpha;
     ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(...p) : ctx.moveTo(...p))); ctx.closePath();
-    ctx.fillStyle = color || (alliance === 'red' ? COL.red : COL.blue); ctx.fill();
-    ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5; ctx.stroke();
+    const top = st.robotTop;
+    if (top) {
+      // silhouette du vrai modèle 3D, vue de dessus
+      const c0 = this.toScreen(x, y);
+      ctx.save();
+      ctx.translate(c0[0], c0[1]);
+      ctx.rotate(-h);
+      ctx.drawImage(top.canvas, -top.lengthIn / 2 * s, -top.widthIn / 2 * s, top.lengthIn * s, top.widthIn * s);
+      ctx.restore();
+      ctx.strokeStyle = color || (alliance === 'red' ? COL.red : COL.blue); ctx.lineWidth = Math.max(1.5, s * 0.5);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = color || (alliance === 'red' ? COL.red : COL.blue); ctx.fill();
+      ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    if (color) { ctx.fillStyle = color; ctx.globalAlpha = alpha * 0.45; ctx.fill(); ctx.globalAlpha = alpha; }
     // flèche avant
     const tip = this.toScreen(x + Math.cos(h) * st.rd.hl, y + Math.sin(h) * st.rd.hl);
     const c = this.toScreen(x, y);

@@ -161,3 +161,11 @@ textarea#codeView { width: 100%; height: 300px; font-family: var(--mono); font-s
   .grid3 { grid-template-columns: 1fr; }
   .legend .note { margin-left: 0; }
 }
+
+.preview3d { position: relative; height: 260px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); margin-top: 8px; }
+.rotbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0 4px; }
+.rotbar .hint { margin: 0 4px 0 0; }
+label.check.small { font-size: 11.5px; color: var(--ink-2); white-space: nowrap; }
+.busy .btn { margin-top: 10px; }
+#busyTime { color: rgba(255, 255, 255, 0.75); margin: 2px 0 0; }
+input.dim[readonly] { opacity: 0.75; background: transparent; }
