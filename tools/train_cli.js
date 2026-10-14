@@ -19,7 +19,8 @@ const cfgPath = path.resolve(process.argv[2] || path.join(ROOT, 'entrainement', 
 const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
 const MAX = parseFloat(process.env.MAX_MINUTES || '0') || Infinity; // GitHub : un job dure 6 h max
 const minutes = Math.min(MAX, Math.max(0.1, parseFloat(process.argv[3] || cfg.minutes || 60)));
-const OUT = path.join(ROOT, 'entrainement');
+const OUT = path.resolve(ROOT, process.env.OUT_DIR || 'entrainement');
+const LEGACY = path.basename(OUT) === 'entrainement'; // ancien mode : met aussi à jour data/cloud_result.js
 fs.mkdirSync(OUT, { recursive: true });
 
 const merge = (def, obj) => {
@@ -45,7 +46,11 @@ function save(final) {
   const world = bestOpt.world;
   const startText = BZ.describeStart(world, best.plan.start, robot);
   const summary = {
-    version: 1,
+    version: 2,
+    nom: process.env.SESSION_NAME || cfg.nom || 'Entraînement',
+    session: process.env.SESSION_ID || null,
+    debut: new Date(t0).toISOString(),
+    minutesPrevues: minutes,
     date: new Date().toISOString(),
     termine: !!final,
     minutes: Math.round((Date.now() - t0) / 600) / 100,
@@ -58,9 +63,11 @@ function save(final) {
   fs.writeFileSync(path.join(OUT, 'resultat.json'), JSON.stringify(summary, null, 1));
   fs.writeFileSync(path.join(OUT, 'AutoBiobuzzIA.java'), BZ.exportJava(best, robot, { startText }));
   fs.writeFileSync(path.join(OUT, 'AutoBiobuzzIA.blk'), BZ.exportBlockly(best, robot, { startText }));
-  fs.writeFileSync(path.join(ROOT, 'data', 'cloud_result.js'),
-    '// Résultat du dernier entraînement dans le cloud (généré par tools/train_cli.js).\n' +
-    'window.CLOUD_RESULT = ' + JSON.stringify(summary) + ';\n');
+  if (LEGACY) {
+    fs.writeFileSync(path.join(ROOT, 'data', 'cloud_result.js'),
+      '// Résultat du dernier entraînement dans le cloud (généré par tools/train_cli.js).\n' +
+      'window.CLOUD_RESULT = ' + JSON.stringify(summary) + ';\n');
+  }
   const lines = [
     `# Résultat de l'entraînement`, '',
     `- Date : ${summary.date}${final ? '' : ' (en cours)'}`,

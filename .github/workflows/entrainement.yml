@@ -1,26 +1,38 @@
 # Entraînement long de l'IA sur un serveur GitHub (l'ordinateur peut être éteint).
-# Se lance tout seul quand entrainement/config.json est modifié, ou à la main :
-# onglet Actions > « Entraînement IA (cloud) » > Run workflow.
-# Les résultats (Java, .blk, rapport, resultat.json) sont ajoutés au dépôt dans entrainement/.
+# - Lancé depuis l'appli (onglet « Sessions ») : la config du robot est passée en paramètre et les
+#   résultats sont rangés dans sessions/<numéro de la session>/.
+# - Ou en déposant entrainement/config.json : résultats dans entrainement/.
+# - Ou à la main : onglet Actions > « Entraînement IA (cloud) » > Run workflow.
 name: Entraînement IA (cloud)
+run-name: ${{ inputs.nom || github.event.head_commit.message || 'Entraînement IA' }}
 
 on:
   workflow_dispatch:
     inputs:
+      nom:
+        description: "Nom de la session"
+        required: false
+        default: "Entraînement"
       minutes:
         description: "Durée de l'entraînement en minutes (340 max)"
         required: false
         default: "300"
+      config:
+        description: "Config du robot (JSON, rempli par l'appli). Vide = entrainement/config.json"
+        required: false
+        default: ""
   push:
     paths:
       - entrainement/config.json
 
 permissions:
   contents: write
+  actions: read
 
+# Plusieurs sessions peuvent tourner en même temps (une par lancement).
 concurrency:
-  group: entrainement-${{ github.ref_name }}
-  cancel-in-progress: true
+  group: entrainement-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   entrainer:
@@ -33,25 +45,64 @@ jobs:
         with:
           node-version: 20
 
-      - name: Entraîner l'IA
+      - name: Préparer la session
+        id: prep
+        env:
+          CONFIG: ${{ inputs.config }}
+          NOM: ${{ inputs.nom }}
+        run: |
+          if [ -n "$CONFIG" ]; then
+            OUT="sessions/${{ github.run_id }}"
+            mkdir -p "$OUT"
+            printf '%s' "$CONFIG" > "$OUT/config.json"
+          else
+            OUT="entrainement"
+          fi
+          echo "out=$OUT" >> "$GITHUB_OUTPUT"
+          git config user.name "biobuzz-ia"
+          git config user.email "biobuzz-ia@users.noreply.github.com"
+
+      - name: Entraîner l'IA (sauvegarde toutes les 15 min)
         timeout-minutes: 345
         env:
           MAX_MINUTES: "340"
-        run: node tools/train_cli.js entrainement/config.json "${{ github.event.inputs.minutes }}"
+          OUT_DIR: ${{ steps.prep.outputs.out }}
+          SESSION_NAME: ${{ inputs.nom }}
+          SESSION_ID: ${{ github.run_id }}
+        run: |
+          save() {
+            git add "$OUT_DIR" data/cloud_result.js 2>/dev/null || git add "$OUT_DIR"
+            git commit -q -m "Session $SESSION_ID : $1" || return 0
+            for i in 1 2 3; do
+              git pull -q --rebase origin "${{ github.ref_name }}" && git push -q origin "HEAD:${{ github.ref_name }}" && return 0
+              sleep 5
+            done
+          }
+          node tools/train_cli.js "$OUT_DIR/config.json" "${{ inputs.minutes }}" &
+          PID=$!
+          n=0
+          while kill -0 "$PID" 2>/dev/null; do
+            sleep 60
+            n=$((n + 1))
+            if [ $((n % 15)) -eq 0 ]; then save "point d'étape ($n min)"; fi
+          done
+          wait "$PID"
 
       - name: Enregistrer les résultats dans le dépôt
         if: always()
+        env:
+          OUT_DIR: ${{ steps.prep.outputs.out }}
         run: |
-          git config user.name "biobuzz-ia"
-          git config user.email "biobuzz-ia@users.noreply.github.com"
-          git add entrainement data/cloud_result.js
-          git commit -m "Résultat de l'entraînement IA" || exit 0
-          git pull --rebase origin "${{ github.ref_name }}"
-          git push origin "HEAD:${{ github.ref_name }}"
+          git add "$OUT_DIR" data/cloud_result.js 2>/dev/null || git add "$OUT_DIR"
+          git commit -q -m "Session ${{ github.run_id }} : résultat final" || exit 0
+          for i in 1 2 3; do
+            git pull -q --rebase origin "${{ github.ref_name }}" && git push -q origin "HEAD:${{ github.ref_name }}" && exit 0
+            sleep 5
+          done
 
       - name: Résultats téléchargeables
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: resultat-entrainement
-          path: entrainement/
+          name: resultat-${{ github.run_id }}
+          path: ${{ steps.prep.outputs.out }}/

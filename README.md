@@ -62,27 +62,39 @@ Le format Inventor est fermé : rien d'autre qu'Inventor ne sait le lire. Export
 
 Avec Onshape ou Fusion 360, faites clic droit puis Exporter > STEP.
 
-## Entraînement long dans le cloud (ordinateur éteint)
+## Sessions dans le cloud (ordinateur éteint)
 
-Pour entraîner l'IA pendant des heures, par exemple pendant les cours, sur un serveur GitHub
-gratuit :
+L'onglet **☁ Sessions** de l'appli lance des entraînements sur un serveur GitHub gratuit, pendant que
+l'ordinateur est éteint. Il affiche aussi vos sessions (en cours, terminées) et le **meilleur
+résultat**, à charger et rejouer, ou à télécharger directement en `.java` / `.blk`.
 
-1. Dans l'appli, onglet **3. Entraîner** : choisissez la durée (340 min max) et cliquez
-   **Télécharger config.json**.
-2. Sur GitHub, branche `claude/zealous-euler-ceeast`, dossier `entrainement` : faites
-   **Add file > Upload files**, déposez `config.json`, puis **Commit changes**.
-3. L'entraînement démarre tout seul : onglet **Actions**, workflow « Entraînement IA (cloud) ».
-   Vous pouvez aussi le relancer à la main avec **Run workflow**. L'ordinateur peut être éteint.
-4. À la fin, le dossier `entrainement` contient `AutoBiobuzzIA.java`, `AutoBiobuzzIA.blk`,
-   `rapport.md` et `resultat.json`. Retéléchargez le ZIP du dépôt et ouvrez `index.html` :
-   l'appli propose de charger ce résultat, pour le rejouer en 2D/3D et le réexporter.
+**Une seule fois : connecter GitHub.** Il faut créer un jeton, sur la page
+https://github.com/settings/personal-access-tokens/new :
+
+1. Repository access : **Only select repositories**, puis le dépôt `machine-learning-ftc`.
+2. Permissions : **Actions = Read and write** et **Contents = Read and write**.
+3. **Generate token**, puis collez le jeton dans l'onglet **☁ Sessions** et cliquez **Se connecter**.
+
+Le jeton reste uniquement dans ce navigateur.
+
+**Ensuite, à chaque fois :**
+
+1. Réglez le robot et le match (onglets 1 et 2).
+2. Dans **☁ Sessions**, donnez un nom et une durée (340 min max), puis cliquez **☁ Lancer la session**.
+3. Éteignez l'ordinateur si vous voulez. Au retour, rouvrez l'appli : les sessions et le meilleur
+   résultat s'affichent tout seuls. Les sessions en cours enregistrent un point d'étape toutes les
+   15 min.
+
+Les résultats sont aussi rangés dans le dépôt, dans `sessions/<numéro>/` : `AutoBiobuzzIA.java`,
+`.blk`, `rapport.md` et `resultat.json`.
 
 À savoir :
-- GitHub limite un entraînement à 6 h.
-- Un dépôt privé a droit à 2000 minutes de calcul gratuites par mois, soit environ 6
-  entraînements de 5 h. Un dépôt public n'a pas de limite.
-- En local, on peut lancer la même chose avec `node tools/train_cli.js config.json 60`
-  (pour 60 min).
+- Plusieurs sessions peuvent tourner en même temps.
+- Un dépôt privé a droit à 2000 minutes de calcul gratuites par mois. Un dépôt public n'a pas de
+  limite.
+- Sans jeton, on peut aussi déposer un `config.json` (bouton « ou télécharger config.json ») dans le
+  dossier `entrainement/` du dépôt.
+- En local : `node tools/train_cli.js config.json 60`.
 
 ## Exporter un fichier robot léger
 

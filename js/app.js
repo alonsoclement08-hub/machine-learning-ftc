@@ -563,9 +563,9 @@
 
   // ---------------- Entraînement dans le cloud (GitHub Actions) ----------------
   $('dlCloudCfg').addEventListener('click', () => {
-    const minutes = Math.max(5, Math.min(340, parseFloat($('cloudMinutes').value) || 300));
-    download('config.json', JSON.stringify({ version: 1, minutes, robot, game }, null, 2), 'application/json');
-    $('cloudStatus').textContent = `config.json téléchargé (${minutes} min). Déposez-le dans le dossier « entrainement » du dépôt sur GitHub.`;
+    const minutes = Math.max(5, Math.min(340, parseFloat($('sessMinutes').value) || 300));
+    download('config.json', JSON.stringify({ version: 1, minutes, nom: $('sessName').value || robot.nom, robot, game }, null, 2), 'application/json');
+    $('sessLaunchStatus').textContent = `config.json téléchargé (${minutes} min) : déposez-le dans le dossier « entrainement » du dépôt sur GitHub.`;
   });
 
   // Charge un résultat (resultat.json ou data/cloud_result.js) : robot, match et meilleur plan.
@@ -601,6 +601,165 @@
       (c.termine ? '' : ' (pas terminé)') + '. <button class="btn primary" id="useCloud" type="button">Charger ce résultat</button>';
     $('useCloud').addEventListener('click', () => { loadCloudResult(c); document.querySelector('.tab[data-tab="ia"]').click(); });
   }
+
+  // ---------------- Sessions dans le cloud (pilotées depuis l'appli) ----------------
+  const GH_KEY = 'biobuzz-gh-v1';
+  let ghSettings = null;
+  try { ghSettings = JSON.parse(localStorage.getItem(GH_KEY) || 'null'); } catch (e) { ghSettings = null; }
+  let cloud = null;
+  let sessTimer = null;
+  let lastSessions = [];
+  if (ghSettings) {
+    $('ghRepo').value = ghSettings.owner + '/' + ghSettings.repo;
+    $('ghBranch').value = ghSettings.branch;
+    $('ghToken').value = ghSettings.token;
+  }
+  const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const fmtDate = (d) => { if (!d) return '–'; const x = new Date(d); return x.toLocaleDateString('fr-FR') + ' ' + x.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); };
+
+  async function ghConnect(silent) {
+    const [owner, repo] = ($('ghRepo').value || '').trim().split('/');
+    const token = ($('ghToken').value || '').trim();
+    if (!owner || !repo || !token) { if (!silent) $('ghState').textContent = 'Indiquez le dépôt et collez le jeton.'; return false; }
+    ghSettings = { owner, repo, branch: ($('ghBranch').value || 'main').trim(), token };
+    cloud = new BZ.Cloud(ghSettings);
+    $('ghState').textContent = 'Connexion…';
+    try {
+      const info = await cloud.check();
+      try { localStorage.setItem(GH_KEY, JSON.stringify(ghSettings)); } catch (e) { /* pas de stockage */ }
+      $('ghState').innerHTML = `<span class="ok">✓ Connecté à <b>${esc(info.fullName)}</b></span>` +
+        (info.private ? ' · dépôt privé : 2000 min de calcul gratuites par mois' : ' · dépôt public : calcul illimité');
+      await refreshSessions();
+      clearInterval(sessTimer);
+      sessTimer = setInterval(() => refreshSessions(true), 60000);
+      return true;
+    } catch (err) {
+      cloud = null;
+      $('ghState').innerHTML = `<span style="color:var(--red)">✗ ${esc(err.message)}</span>`;
+      return false;
+    }
+  }
+  $('ghConnect').addEventListener('click', () => ghConnect(false));
+  $('ghForget').addEventListener('click', () => {
+    try { localStorage.removeItem(GH_KEY); } catch (e) { /* rien */ }
+    ghSettings = null; cloud = null; clearInterval(sessTimer);
+    $('ghToken').value = '';
+    $('ghState').textContent = 'Jeton oublié. Non connecté.';
+    $('sessList').innerHTML = '<p class="hint">Connectez GitHub pour voir vos sessions.</p>';
+  });
+
+  function sessionTexts(res) {
+    const r2 = merge(BZ.defaultRobot(), res.robot);
+    const g2 = merge(BZ.defaultGame(), res.game);
+    g2.zonePartenaire = (res.game && res.game.zonePartenaire) || null;
+    g2.departImpose = (res.game && res.game.departImpose) || null;
+    const o = new BZ.Optimizer(window.FIELD, r2, g2, { seed: 1, popSize: 2 });
+    const r = o.sim.run(res.plan);
+    const startText = res.departTexte || BZ.describeStart(o.world, r.plan.start, r2);
+    return { java: BZ.exportJava(r, r2, { startText }), blk: BZ.exportBlockly(r, r2, { startText }) };
+  }
+
+  function renderSessions(list) {
+    lastSessions = list;
+    const best = BZ.bestSession(list);
+    const running = list.filter((s) => s.status !== 'completed').length;
+    document.querySelector('.tab[data-tab="cloud"]').textContent = running ? `☁ Sessions (${running})` : '☁ Sessions';
+    if (!list.length) { $('sessList').innerHTML = '<p class="hint">Aucune session pour l\'instant : lancez-en une ci-dessus.</p>'; $('bestCard').hidden = true; return; }
+    const card = (s) => {
+      const r = s.result;
+      let badge;
+      if (s.status === 'queued' || s.status === 'waiting' || s.status === 'requested' || s.status === 'pending') badge = '<span class="badge wait">En attente</span>';
+      else if (s.status !== 'completed') badge = '<span class="badge run">En cours</span>';
+      else if (s.conclusion === 'success') badge = '<span class="badge ok">Terminée</span>';
+      else if (s.conclusion === 'cancelled') badge = '<span class="badge wait">Annulée</span>';
+      else badge = '<span class="badge ko">Échouée</span>';
+      let bar = '';
+      if (s.status !== 'completed' && s.debut) {
+        const prev = (r && r.minutesPrevues) || null;
+        const el = (Date.now() - new Date(s.debut).getTime()) / 60000;
+        bar = prev ? `<div class="bar"><i style="width:${Math.min(100, (el / prev) * 100).toFixed(0)}%"></i></div><div class="sess-meta">${Math.round(el)} / ${Math.round(prev)} min</div>`
+          : `<div class="sess-meta">démarrée il y a ${Math.round(el)} min (premier point d'étape après 15 min)</div>`;
+      }
+      const meta = [
+        r && r.robot ? 'Robot : ' + esc(r.robot.nom) + ' (' + esc(r.robot.chassis) + ')' : null,
+        'Lancée le ' + fmtDate(s.debut),
+        r ? `${r.minutes} min d'entraînement · ${(r.strategiesTestees || 0).toLocaleString('fr-FR')} stratégies testées` : null,
+      ].filter(Boolean).join(' · ');
+      const actions = [];
+      if (r && r.plan) {
+        actions.push(`<button class="btn primary" data-act="load" data-id="${s.id}" type="button">Charger</button>`);
+        actions.push(`<button class="btn" data-act="java" data-id="${s.id}" type="button">.java</button>`);
+        actions.push(`<button class="btn" data-act="blk" data-id="${s.id}" type="button">.blk</button>`);
+      }
+      if (s.status !== 'completed') actions.push(`<button class="btn ghost" data-act="cancel" data-id="${s.id}" type="button">Arrêter</button>`);
+      if (s.url) actions.push(`<a class="btn ghost" href="${esc(s.url)}" target="_blank" rel="noopener">GitHub ↗</a>`);
+      return `<div class="sess${best && best.id === s.id ? ' best' : ''}">
+        <div class="sess-head"><span class="sess-name">${esc(s.nom)}</span>${badge}</div>
+        <div class="sess-meta">${meta}</div>${bar}
+        ${r ? `<div class="sess-head"><span>${r.termine ? 'Meilleur score' : 'Meilleur score (point d\'étape)'}</span><span class="sess-score">${r.score.toFixed(1)} pts</span></div>
+        <div class="sess-meta">Bascules espérées ${r.bascules.toFixed(2)} · LEAVE ${r.leave ? '✓' : '✗'} · PARK ${r.park ? '✓' : '✗'} · plan de ${r.duree.toFixed(1)} s · ${r.fautes.length ? 'fautes : ' + esc(r.fautes.join(', ')) : 'aucune faute'}</div>` : ''}
+        <div class="row">${actions.join('')}</div></div>`;
+    };
+    $('sessList').innerHTML = list.map(card).join('');
+    if (best) {
+      $('bestCard').hidden = false;
+      $('bestSession').innerHTML = `<p><b>${best.result.score.toFixed(1)} pts</b> espérés · session « ${esc(best.nom)} » (${esc(best.result.robot ? best.result.robot.nom : '')}), ${fmtDate(best.debut)}</p>
+        <div class="row"><button class="btn primary" data-act="load" data-id="${best.id}" type="button">Charger et rejouer</button>
+        <button class="btn" data-act="java" data-id="${best.id}" type="button">Télécharger .java</button>
+        <button class="btn" data-act="blk" data-id="${best.id}" type="button">Télécharger .blk</button></div>`;
+    } else $('bestCard').hidden = true;
+  }
+
+  async function refreshSessions(silent) {
+    if (!cloud) return;
+    try {
+      renderSessions(await cloud.sessions());
+      $('sessUpdated').textContent = 'Mis à jour à ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + ' (actualisation automatique chaque minute).';
+    } catch (err) {
+      if (!silent) $('sessUpdated').textContent = '✗ ' + err.message;
+    }
+  }
+  $('sessRefresh').addEventListener('click', () => (cloud ? refreshSessions() : ghConnect(false)));
+
+  document.getElementById('tab-cloud').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    const s = lastSessions.find((x) => x.id === b.dataset.id);
+    if (!s) return;
+    const act = b.dataset.act;
+    try {
+      if (act === 'load') { loadCloudResult(s.result); document.querySelector('.tab[data-tab="ia"]').click(); }
+      else if (act === 'java') download('AutoBiobuzzIA.java', sessionTexts(s.result).java, 'text/x-java');
+      else if (act === 'blk') download('AutoBiobuzzIA.blk', sessionTexts(s.result).blk, 'application/xml');
+      else if (act === 'cancel') {
+        if (!(await confirmModal('Arrêter la session ?', `<p>La session « ${esc(s.nom)} » sera arrêtée. Le dernier point d'étape enregistré est gardé.</p>`, 'Arrêter', 'Continuer'))) return;
+        await cloud.cancel(s.id);
+        setTimeout(() => refreshSessions(), 3000);
+      }
+    } catch (err) { modal('Action impossible', `<p>${esc(err.message)}</p>`); }
+  });
+
+  $('sessLaunch').addEventListener('click', async () => {
+    if (!cloud && !(await ghConnect(false))) {
+      $('sessLaunchStatus').textContent = 'Connectez d\'abord GitHub (en bas de cet onglet).';
+      return;
+    }
+    const minutes = Math.max(5, Math.min(340, parseFloat($('sessMinutes').value) || 300));
+    const nom = ($('sessName').value || '').trim() || `${robot.nom} · ${new Date().toLocaleDateString('fr-FR')}`;
+    $('sessLaunch').disabled = true;
+    $('sessLaunchStatus').textContent = 'Lancement…';
+    try {
+      await cloud.launch(nom, minutes, { version: 1, nom, minutes, robot, game });
+      $('sessLaunchStatus').innerHTML = `<span class="ok">✓ Session « ${esc(nom)} » lancée pour ${minutes} min.</span> Elle apparaît dans la liste d'ici quelques secondes. Vous pouvez éteindre l'ordinateur.`;
+      setTimeout(() => refreshSessions(), 6000);
+      setTimeout(() => refreshSessions(), 20000);
+    } catch (err) {
+      $('sessLaunchStatus').innerHTML = `<span style="color:var(--red)">✗ ${esc(err.message)}</span>`;
+    } finally {
+      $('sessLaunch').disabled = false;
+    }
+  });
+  if (ghSettings && ghSettings.token) ghConnect(true);
 
   // ---------------- Démarrage ----------------
   const ua = navigator.userAgent || '';
