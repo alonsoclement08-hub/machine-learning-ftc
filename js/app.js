@@ -561,6 +561,47 @@
     setTimeout(() => { $('copyCode').textContent = 'Copier'; }, 1500);
   });
 
+  // ---------------- Entraînement dans le cloud (GitHub Actions) ----------------
+  $('dlCloudCfg').addEventListener('click', () => {
+    const minutes = Math.max(5, Math.min(340, parseFloat($('cloudMinutes').value) || 300));
+    download('config.json', JSON.stringify({ version: 1, minutes, robot, game }, null, 2), 'application/json');
+    $('cloudStatus').textContent = `config.json téléchargé (${minutes} min). Déposez-le dans le dossier « entrainement » du dépôt sur GitHub.`;
+  });
+
+  // Charge un résultat (resultat.json ou data/cloud_result.js) : robot, match et meilleur plan.
+  function loadCloudResult(sum) {
+    if (!sum || !sum.plan) throw new Error('fichier sans plan');
+    stopTraining();
+    robot = merge(BZ.defaultRobot(), sum.robot);
+    const g = merge(BZ.defaultGame(), sum.game);
+    Object.assign(game, g, { zonePartenaire: (sum.game && sum.game.zonePartenaire) || null, departImpose: (sum.game && sum.game.departImpose) || null });
+    fillForm($('robotForm'), robot);
+    fillForm($('gameForm'), game);
+    persist(); showRobotWarnings();
+    const o = new BZ.Optimizer(window.FIELD, robot, game, { seed: 1, popSize: 2 });
+    best = o.sim.run(sum.plan);
+    opt = null;
+    currentWorld = o.world;
+    pushState();
+    setTime(0);
+    $('cloudStatus').textContent = `Résultat chargé : ${best.expected.toFixed(1)} pts espérés (entraînement de ${sum.minutes} min, ${sum.strategiesTestees || '?'} stratégies testées).`;
+    if (robotModel) applyModel(false);
+  }
+  $('loadResult').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    try { loadCloudResult(JSON.parse(await f.text())); }
+    catch (err) { modal('Résultat invalide', '<p>Choisissez le fichier <b>resultat.json</b> du dossier « entrainement ».</p>'); }
+  });
+  if (window.CLOUD_RESULT && window.CLOUD_RESULT.plan) {
+    const c = window.CLOUD_RESULT;
+    const d = new Date(c.date);
+    $('cloudBanner').hidden = false;
+    $('cloudBanner').innerHTML = `Résultat d'un entraînement dans le cloud trouvé : <b>${c.score.toFixed(1)} pts</b> espérés, ${c.minutes} min, le ${d.toLocaleDateString('fr-FR')} à ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` +
+      (c.termine ? '' : ' (pas terminé)') + '. <button class="btn primary" id="useCloud" type="button">Charger ce résultat</button>';
+    $('useCloud').addEventListener('click', () => { loadCloudResult(c); document.querySelector('.tab[data-tab="ia"]').click(); });
+  }
+
   // ---------------- Démarrage ----------------
   const ua = navigator.userAgent || '';
   if (/Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS/.test(ua)) $('safariNote').hidden = false;

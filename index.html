@@ -12,7 +12,7 @@
     <span class="logo" aria-hidden="true">🐝</span>
     <div>
       <h1>BIOBUZZ Auto IA</h1>
-      <p class="sub">FTC 2026-2027 · l'IA cherche le meilleur AUTO de 30 s pour votre robot · <span class="mono" id="appVersion">v5 · 14/10</span></p>
+      <p class="sub">FTC 2026-2027 · l'IA cherche le meilleur AUTO de 30 s pour votre robot · <span class="mono" id="appVersion">v6 · 14/10</span></p>
     </div>
   </div>
   <div class="score-strip" id="scoreStrip">
@@ -198,6 +198,29 @@
         <canvas id="chart" height="140" aria-label="Évolution du meilleur score"></canvas>
       </div>
       <div class="card">
+        <h2>Entraînement long dans le cloud</h2>
+        <p class="hint">Pour entraîner l'IA pendant des heures (par exemple pendant les cours), même ordinateur éteint, sur un serveur GitHub gratuit.</p>
+        <div id="cloudBanner" class="warn-box" hidden></div>
+        <div class="row">
+          <label class="inline">Durée <input id="cloudMinutes" type="number" value="300" min="5" max="340" step="5"> min</label>
+          <button class="btn primary" id="dlCloudCfg" type="button">Télécharger config.json</button>
+        </div>
+        <div class="row">
+          <label class="btn file">Importer un résultat (resultat.json)…<input type="file" id="loadResult" accept=".json"></label>
+        </div>
+        <details>
+          <summary>Comment faire (une fois, 2 minutes)</summary>
+          <ol class="steps-help">
+            <li>Réglez le robot et le match dans l'appli, puis cliquez <b>Télécharger config.json</b>.</li>
+            <li>Sur GitHub, ouvrez votre dépôt <span class="mono">machine-learning-ftc</span> et choisissez la branche <span class="mono">claude/zealous-euler-ceeast</span>.</li>
+            <li>Ouvrez le dossier <span class="mono">entrainement</span>, puis <b>Add file &gt; Upload files</b>, déposez <span class="mono">config.json</span> et cliquez <b>Commit changes</b>.</li>
+            <li>L'entraînement démarre tout seul (onglet <b>Actions</b> du dépôt, pastille jaune). Vous pouvez éteindre l'ordinateur.</li>
+            <li>Au retour (pastille verte) : retéléchargez le ZIP du dépôt et ouvrez <span class="mono">index.html</span>. L'appli propose de charger le résultat. Les fichiers <span class="mono">AutoBiobuzzIA.java</span> et <span class="mono">.blk</span> sont aussi dans le dossier <span class="mono">entrainement</span>.</li>
+          </ol>
+        </details>
+        <div id="cloudStatus" class="status"></div>
+      </div>
+      <div class="card">
         <h2>Meilleur plan</h2>
         <ol id="planSteps" class="steps"></ol>
         <div id="faultList" class="warnings"></div>
@@ -269,6 +292,7 @@
 <script src="vendor/OrbitControls.js"></script>
 <script src="data/field_layout.js"></script>
 <script src="data/field_mesh.js"></script>
+<script src="data/cloud_result.js"></script>
 <script src="js/geometry.js"></script>
 <script src="js/robot.js"></script>
 <script src="js/rules.js"></script>

@@ -169,6 +169,21 @@
 
   Optimizer.prototype.bestResult = function () { return this.best ? this.best.result : null; };
 
+  // Ajoute un plan connu (ex. le meilleur d'un essai précédent) dans la population.
+  Optimizer.prototype.addPlan = function (plan) {
+    let idx = this.starts.findIndex((s) => Math.abs(s.x - plan.start.x) < 0.05 && Math.abs(s.y - plan.start.y) < 0.05 && Math.abs(s.h - plan.start.h) < 1e-3);
+    if (idx < 0) {
+      if (this.game.departImpose) return; // départ imposé différent : plan incompatible
+      if (BZ.checkStart(this.world, plan.start).length) return;
+      this.starts.push(plan.start);
+      idx = this.starts.length - 1;
+    }
+    const g = { startIdx: idx, actions: plan.actions.map((a) => Object.assign({}, a)), park: Object.assign({ on: false, t: 0.5 }, plan.park) };
+    this.evaluate(g);
+    this.pop[this.pop.length - 1] = g;
+    if (!this.best || g.result.fitness > this.best.result.fitness) this.best = g;
+  };
+
   BZ.Optimizer = Optimizer;
   if (typeof module !== 'undefined' && module.exports) module.exports = Optimizer;
 })(typeof window !== 'undefined' ? window : globalThis);

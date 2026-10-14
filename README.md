@@ -62,6 +62,28 @@ Le format Inventor est fermé : rien d'autre qu'Inventor ne sait le lire. Export
 
 Avec Onshape ou Fusion 360, faites clic droit puis Exporter > STEP.
 
+## Entraînement long dans le cloud (ordinateur éteint)
+
+Pour entraîner l'IA pendant des heures, par exemple pendant les cours, sur un serveur GitHub
+gratuit :
+
+1. Dans l'appli, onglet **3. Entraîner** : choisissez la durée (340 min max) et cliquez
+   **Télécharger config.json**.
+2. Sur GitHub, branche `claude/zealous-euler-ceeast`, dossier `entrainement` : faites
+   **Add file > Upload files**, déposez `config.json`, puis **Commit changes**.
+3. L'entraînement démarre tout seul : onglet **Actions**, workflow « Entraînement IA (cloud) ».
+   Vous pouvez aussi le relancer à la main avec **Run workflow**. L'ordinateur peut être éteint.
+4. À la fin, le dossier `entrainement` contient `AutoBiobuzzIA.java`, `AutoBiobuzzIA.blk`,
+   `rapport.md` et `resultat.json`. Retéléchargez le ZIP du dépôt et ouvrez `index.html` :
+   l'appli propose de charger ce résultat, pour le rejouer en 2D/3D et le réexporter.
+
+À savoir :
+- GitHub limite un entraînement à 6 h.
+- Un dépôt privé a droit à 2000 minutes de calcul gratuites par mois, soit environ 6
+  entraînements de 5 h. Un dépôt public n'a pas de limite.
+- En local, on peut lancer la même chose avec `node tools/train_cli.js config.json 60`
+  (pour 60 min).
+
 ## Exporter un fichier robot léger
 
 - **STL** (le plus rapide, quelques secondes) : depuis Inventor, **Fichier > Exporter > Format CAO > STL**.

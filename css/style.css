@@ -172,3 +172,6 @@ input.dim[readonly] { opacity: 0.75; background: transparent; }
 .warn-box { background: rgba(224, 161, 0, 0.14); border: 1px solid var(--accent); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; margin: 6px 0; }
 .busy-long { max-width: 460px; text-align: center; background: rgba(0, 0, 0, 0.35); border-radius: 10px; padding: 10px 14px; margin-top: 10px; }
 .busy-long p { margin: 0 0 8px; font-size: 13px; }
+.steps-help { padding-left: 20px; font-size: 12.5px; }
+.steps-help li { margin: 4px 0; }
+#cloudMinutes { width: 80px; }

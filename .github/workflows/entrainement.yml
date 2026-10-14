@@ -1,0 +1,57 @@
+# Entraînement long de l'IA sur un serveur GitHub (l'ordinateur peut être éteint).
+# Se lance tout seul quand entrainement/config.json est modifié, ou à la main :
+# onglet Actions > « Entraînement IA (cloud) » > Run workflow.
+# Les résultats (Java, .blk, rapport, resultat.json) sont ajoutés au dépôt dans entrainement/.
+name: Entraînement IA (cloud)
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "Durée de l'entraînement en minutes (340 max)"
+        required: false
+        default: "300"
+  push:
+    paths:
+      - entrainement/config.json
+
+permissions:
+  contents: write
+
+concurrency:
+  group: entrainement-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  entrainer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 358
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Entraîner l'IA
+        timeout-minutes: 345
+        env:
+          MAX_MINUTES: "340"
+        run: node tools/train_cli.js entrainement/config.json "${{ github.event.inputs.minutes }}"
+
+      - name: Enregistrer les résultats dans le dépôt
+        if: always()
+        run: |
+          git config user.name "biobuzz-ia"
+          git config user.email "biobuzz-ia@users.noreply.github.com"
+          git add entrainement data/cloud_result.js
+          git commit -m "Résultat de l'entraînement IA" || exit 0
+          git pull --rebase origin "${{ github.ref_name }}"
+          git push origin "HEAD:${{ github.ref_name }}"
+
+      - name: Résultats téléchargeables
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultat-entrainement
+          path: entrainement/
