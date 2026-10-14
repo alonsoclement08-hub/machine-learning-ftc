@@ -478,6 +478,13 @@
         '<p>Votre navigateur bloque la lecture des fichiers STEP quand l\'appli est ouverte comme fichier local (c\'est le cas de <b>Safari</b>).</p>' +
         '<ol><li><b>Importez le STL</b> de votre robot : il se charge en quelques secondes, dans tous les navigateurs.</li>' +
         '<li>Ou ouvrez l\'appli dans <b>Chrome</b> ou <b>Edge</b> : clic droit sur <span class="mono">index.html</span> &gt; Ouvrir avec.</li></ol>');
+      else if (err && (err.name === 'NotReadableError' || /could not be read|permission problems/i.test(err.message || '')))
+        modal('Le navigateur n\'a pas pu lire ce fichier',
+          '<p>Le fichier a changé ou n\'est plus accessible depuis que vous l\'avez choisi.</p>' +
+          '<ol><li>Si l\'export depuis Inventor n\'était pas fini, attendez qu\'il se termine.</li>' +
+          '<li>Si le fichier est dans <b>iCloud Drive</b>, OneDrive ou Google Drive, copiez-le d\'abord sur le <b>Bureau</b> (ou dans Téléchargements), sur votre ordinateur.</li>' +
+          '<li>Si le fichier est dans un ZIP, dézippez-le d\'abord.</li>' +
+          '<li>Puis cliquez à nouveau sur « Importer mon robot… » et choisissez la copie.</li></ol>');
       else if (!err.cancelled) modal('Import impossible', `<p>${err.message || err}</p>`);
     } finally {
       busy(false);
