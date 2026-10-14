@@ -190,7 +190,7 @@
           ctx.closePath(); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
           if (col === alliance) {
             ctx.fillStyle = '#fff'; ctx.font = `700 ${Math.round(s * 3.2)}px system-ui`;
-            ctx.fillText(`${hs.fill}/${st.game ? st.game.seuilBascule : 6}`, ...P(o.x, o.y / 2 - 1.2));
+            ctx.fillText(`${String(hs.weight !== undefined ? hs.weight : hs.fill).replace('.', ',')}/${st.game ? st.game.seuilBascule : 8}`, ...P(o.x, o.y / 2 - 1.2));
           }
         }
       });

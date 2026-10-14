@@ -39,8 +39,9 @@ Rien à installer et pas besoin d'Internet : l'appli marche aussi hors ligne, au
    - Remplissez ensuite les caractéristiques : châssis mecanum ou tank, les 3 variables, le lanceur
      (distance de tir, précision, cadence), l'intake, et les noms des moteurs de votre configuration.
 2. **Match**
-   - Choisissez l'alliance, le nombre de balles qui font basculer la HIVE, et le nombre de NECTAR
-     déjà dans la CELL au départ (3 selon le manuel TU04).
+   - Choisissez l'alliance, le poids qui fait basculer la HIVE (8 POLLEN), le poids d'un NECTAR
+     (1,67 POLLEN : 3 NECTAR + 3 POLLEN font basculer) et le nombre de NECTAR déjà dans la CELL au
+     départ (3 selon le manuel TU04).
    - **Placer le robot** : bougez la souris sur le terrain, le robot se colle au mur le plus proche.
      **R/E** ou **Q** (ou les boutons ⟲ ⟳) le tournent, un clic le pose. Un départ interdit (G304)
      s'affiche en orange avec la raison.
@@ -162,10 +163,18 @@ Les données viennent du **CAD officiel du terrain** (`am-5850 BIOBUZZ`, convert
   Après une bascule, c'est l'autre CELL qui est en haut, avec son ouverture de l'autre côté.
 - **Score espéré** : chaque tir réussit avec la probabilité « précision », à condition que la
   distance soit bonne, que le robot vise la bonne CELL et qu'il soit du côté de l'ouverture.
-  L'espérance des bascules est calculée exactement.
+  L'espérance des bascules est calculée exactement. Le robot vise la CELL qui fait face à son point
+  de tir : tirer une balle de plus que nécessaire donne de la marge si une balle rate.
+- **Stratégie de l'équipe** (point de départ de l'IA) : tirer les balles préchargées (1re bascule),
+  FLOWER 1 → tir de l'autre côté, FLOWER 2 → tir (2e bascule), GARDEN → tir pour commencer la CELL
+  suivante, puis PARK. L'IA ajuste ensuite les points de tir, le départ, l'ordre et le nombre de
+  balles par tir.
+- **Déplacements optimisés** : pour chaque trajet, le simulateur choisit la manœuvre la plus
+  rapide (mecanum : cap pendant le trajet, en avant ou en crabe ; tank : en avant ou à reculons)
+  et retire les points de passage inutiles (chaque segment coûte une pause).
 
 **Paramètres à vérifier sur un vrai terrain** :
-- le nombre de balles qui font basculer la HIVE (8 par défaut, NECTAR compris : 3 NECTAR + 5 POLLEN) ;
+- le poids qui fait basculer la HIVE (8 POLLEN par défaut) et le poids d'un NECTAR (1,67 POLLEN) ;
 - la précision du lanceur ;
 - les temps de ramassage.
 

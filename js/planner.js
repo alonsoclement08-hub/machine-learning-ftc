@@ -104,10 +104,28 @@
     return out;
   };
 
+  // Case libre de la grille la plus proche de P, rejointe en ligne droite (un point libre peut
+  // tomber dans une case de grille occupée, dans un recoin).
+  Planner.prototype.anchor = function (P) {
+    const [ci, cj] = this.cellOf(P[0], P[1]);
+    let best = null, bd = Infinity;
+    for (let r = 0; r <= 4 && !best; r++) {
+      for (let i = ci - r; i <= ci + r; i++) {
+        for (let j = cj - r; j <= cj + r; j++) {
+          if (i < 0 || j < 0 || i >= this.nx || j >= this.ny || !this.free[i * this.ny + j]) continue;
+          const x = this.x0 + i * this.res, y = this.y0 + j * this.res;
+          const d = G.dist(x, y, P[0], P[1]);
+          if (d < bd && this.segFree(P[0], P[1], x, y)) { bd = d; best = [i, j]; }
+        }
+      }
+    }
+    return best || [ci, cj];
+  };
+
   Planner.prototype.astar = function (A, B) {
     const ny = this.ny, nx = this.nx, res = this.res;
-    const [si, sj] = this.cellOf(A[0], A[1]);
-    const [gi, gj] = this.cellOf(B[0], B[1]);
+    const [si, sj] = this.anchor(A);
+    const [gi, gj] = this.anchor(B);
     const N = nx * ny;
     const g = new Float64Array(N).fill(Infinity);
     const came = new Int32Array(N).fill(-1);

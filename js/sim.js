@@ -79,17 +79,17 @@
   BZ.shotOutcomes = function (result, world, robot, game, rng) {
     const out = { shots: [], tips: [] };
     if (!result) return out;
-    let fill = world.startNectar, tips = 0;
+    let fill = world.startFill, tips = 0, count = world.startNectar;
     for (const s of result.shots) {
       if (s.t > game.dureeAuto) break;
       const cellIdx = tips % 2;
       const p = BZ.hitProb(world, robot, s.x, s.y, s.aim, world.cellTargets[cellIdx]);
       const hit = rng ? rng() < p : p > 0;
       const tArr = s.t + BZ.FLIGHT;
-      out.shots.push(Object.assign({}, s, { hit, cellIdx, tArr, slot: hit ? fill : -1 }));
+      out.shots.push(Object.assign({}, s, { hit, cellIdx, tArr, slot: hit ? count : -1 }));
       if (hit) {
-        fill++;
-        if (fill >= game.seuilBascule) { fill = 0; tips++; out.tips.push(tArr); }
+        fill++; count++;
+        if (BZ.tipsAt(fill, game)) { fill = 0; count = 0; tips++; out.tips.push(tArr); }
       }
     }
     return out;
@@ -103,7 +103,7 @@
     const world = this.world, rd = this.rd, robot = this.robot, game = this.game;
     const st = {
       x: plan.start.x, y: plan.start.y, h: plan.start.h, t: 0,
-      held: Math.min(4, game.prechargees), fill: world.startNectar, tipsBelief: 0,
+      held: Math.min(4, game.prechargees), fill: world.startFill, tipsBelief: 0,
       avail: { jardin: world.garden.balls.length }, prims: [], faults: {}, shots: [], events: [], moved: false,
       launcherOn: false,
     };
@@ -166,9 +166,84 @@
       return null;
     };
 
+    // --- Vérifications "à blanc" (sans rien enregistrer) pour choisir la manœuvre la plus rapide.
+    const poseOk = (x, y, h) => BZ.checkPose(world, x, y, h, null).length === 0;
+    const turnOk = (x, y, h0, h1) => {
+      const d = G.wrap(h1 - h0);
+      const n = Math.ceil(Math.abs(d) / (3 * DEG));
+      for (let i = 1; i <= n; i++) if (!poseOk(x, y, h0 + (d * i) / n)) return false;
+      return true;
+    };
+    const lineOk = (x0, y0, x1, y1, h) => {
+      const n = Math.ceil(G.dist(x0, y0, x1, y1) / 1.0);
+      for (let i = 1; i <= n; i++) if (!poseOk(x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n, h)) return false;
+      return true;
+    };
+    const turnTime = (h0, h1) => {
+      const d = Math.abs(G.wrap(h1 - h0));
+      return d < 0.5 * DEG ? 0 : rd.pause + d / rd.wRot;
+    };
+    const moveTime = (x0, y0, x1, y1, h) => {
+      const dx = x1 - x0, dy = y1 - y0;
+      if (Math.hypot(dx, dy) < 0.5) return 0;
+      const c = Math.cos(h), s = Math.sin(h);
+      const f = dx * c + dy * s, sl = -dx * s + dy * c;
+      return rd.pause + Math.max(Math.abs(f) / rd.vAvant, Math.abs(sl) / rd.vCrabe);
+    };
+
+    // Manœuvre directe (sans contourner d'obstacle) la plus rapide pour aller en (x, y, hFinal) :
+    // - mecanum : on choisit le cap pendant le trajet (cap actuel, cap final, ou dans l'axe du
+    //   trajet, en avant ou à reculons) : tourner plus pour rouler en avant peut être plus rapide
+    //   qu'avancer en crabe ;
+    // - tank : on tourne vers la cible (en avant ou à reculons), on roule, on tourne au cap final.
+    // Renvoie null si aucune manœuvre directe n'est possible sans toucher un obstacle.
+    const directPlan = (x, y, hFinal) => {
+      const L = G.dist(st.x, st.y, x, y);
+      let best = null;
+      const consider = (hv) => {
+        const t = turnTime(st.h, hv) + moveTime(st.x, st.y, x, y, hv) + turnTime(hv, hFinal);
+        if (best && t >= best.t) return;
+        if (!turnOk(st.x, st.y, st.h, hv)) return;
+        if (L >= 0.5 && !lineOk(st.x, st.y, x, y, hv)) return;
+        if (!turnOk(x, y, hv, hFinal)) return;
+        best = { hv, t };
+      };
+      const a = Math.atan2(y - st.y, x - st.x);
+      if (robot.chassis === 'tank') {
+        if (L < 0.5) consider(st.h);
+        else { consider(a); consider(G.wrap(a + Math.PI)); }
+      } else {
+        consider(st.h); consider(hFinal);
+        if (L >= 0.5) { consider(a); consider(G.wrap(a + Math.PI)); }
+      }
+      return best;
+    };
+
+    // Raccourcit un chemin du planificateur : un point intermédiaire est retiré si la ligne droite
+    // entre ses voisins est libre pour le vrai rectangle du robot (le planificateur, lui, utilise un
+    // disque, plus prudent) : moins de segments = moins de pauses.
+    const shortcut = (pts, h) => {
+      const out = [pts[0]];
+      let i = 0;
+      while (i < pts.length - 1) {
+        let j = pts.length - 1;
+        while (j > i + 1 && !lineOk(pts[i][0], pts[i][1], pts[j][0], pts[j][1], h)) j--;
+        out.push(pts[j]);
+        i = j;
+      }
+      return out;
+    };
+
     // Va en (x, y) puis s'oriente vers `hFinal`. Les poses collées à un mur ou à une FLOWER sont
     // quittées / rejointes en ligne droite dans l'axe du robot, sans tourner contre l'obstacle.
     const goTo = (x, y, hFinal, label, allowEnd) => {
+      const d = directPlan(x, y, hFinal);
+      if (d) {
+        if (robot.chassis === 'tank') moveTo(x, y, null, label);
+        else { turnTo(d.hv, null, label); moveTo(x, y, null, label); }
+        turnTo(hFinal, null, label);
+        return true;
+      }
       if (!self.planner.isFree(st.x, st.y)) {
         const e = freeAlong(st.x, st.y, st.h);
         if (!e) { fault('BLOQUE', 'impossible de se dégager'); return false; }
@@ -179,9 +254,13 @@
         pre = freeAlong(x, y, hFinal);
         if (!pre) { fault('BLOQUE', 'cible inaccessible'); return false; }
       }
-      const pts = self.planner.path(st.x, st.y, pre[0], pre[1]);
+      let pts = self.planner.path(st.x, st.y, pre[0], pre[1]);
       if (!pts) { fault('BLOQUE', 'aucun chemin'); return false; }
-      if (robot.chassis !== 'tank') turnTo(hFinal, null, label); // mecanum : on tourne puis on translate
+      if (robot.chassis !== 'tank') {
+        // mecanum : on tourne (si on peut tourner ici) puis on translate au cap final
+        if (turnOk(st.x, st.y, st.h, hFinal)) turnTo(hFinal, null, label);
+        pts = shortcut(pts, st.h);
+      }
       for (let i = 1; i < pts.length; i++) moveTo(pts[i][0], pts[i][1], null, label);
       turnTo(hFinal, null, label);
       if (pre[0] !== x || pre[1] !== y) {
@@ -220,12 +299,19 @@
       const a = actions[ai];
       if (a.type === 'tir') {
         if (st.held <= 0) continue;
-        const cell = world.cellTargets[st.tipsBelief % 2];
+        // On vise la CELL dont l'ouverture fait face au point de tir (celle d'en haut avant la
+        // bascule, ou celle d'en face après). Tirer plus de balles que nécessaire dans la même
+        // CELL donne de la marge en cas de raté : la balle en trop arrive dans une CELL basculée.
+        let cellIdx = -1, best = 0;
+        world.cellTargets.forEach((c, i) => {
+          const p = BZ.hitProb(world, robot, a.x, a.y, Math.atan2(c.y - a.y, c.x - a.x), c);
+          if (p > best + 1e-9 || (p > 0 && Math.abs(p - best) <= 1e-9 && i === st.tipsBelief % 2)) { best = p; cellIdx = i; }
+        });
+        // aucune CELL atteignable d'ici (trop loin, derrière la HIVE…) : on garde les balles
+        if (cellIdx < 0) continue;
+        const cell = world.cellTargets[cellIdx];
         const aimAt = Math.atan2(cell.y - a.y, cell.x - a.x);
         const hF = G.wrap(aimAt - rd.tirSens);
-        // depuis ce point, la CELL du haut (selon le compte du robot) est-elle atteignable ?
-        // sinon (mauvais côté de la HIVE, trop loin…) on ne tire pas et on garde les balles.
-        if (BZ.hitProb(world, robot, a.x, a.y, aimAt, cell) <= 0) continue;
         // Nombre de balles tirées : choisi par l'IA (on peut en garder pour plus tard). Tirer
         // exactement ce qu'il faut est risqué (un raté = pas de bascule) : l'IA arbitre.
         const nTir = Math.max(1, Math.min(st.held, a.n || st.held));
@@ -239,8 +325,9 @@
         pushPrim({ k: 'feed', n, ms: robot.lanceur.msParBalle * n, dur: (robot.lanceur.msParBalle * n) / 1000, label });
         for (let b = 0; b < n; b++) {
           st.shots.push({ t: tFeed0 + ((b + 1) * robot.lanceur.msParBalle) / 1000, x: st.x, y: st.y, aim: G.wrap(st.h + rd.tirSens) });
+          if (cellIdx !== st.tipsBelief % 2) continue; // CELL déjà basculée (balle de marge)
           st.fill++;
-          if (st.fill >= game.seuilBascule) { st.tipsBelief++; st.fill = 0; st.events.push({ t: st.shots[st.shots.length - 1].t + BZ.FLIGHT, type: 'tip' }); }
+          if (BZ.tipsAt(st.fill, game)) { st.tipsBelief++; st.fill = 0; st.events.push({ t: st.shots[st.shots.length - 1].t + BZ.FLIGHT, type: 'tip' }); }
         }
         st.held -= n;
         // on n'éteint le lanceur que si on ne retire pas juste après
@@ -251,6 +338,15 @@
         if (!can || st.held >= 4 || !(st.avail[a.src] > 0)) continue;
         const pose = BZ.pickupPose(world, a.src);
         if (!pose) continue;
+        if (a.src === 'jardin' && !self.planner.isFree(pose.x, pose.y) && !freeAlong(pose.x, pose.y, pose.h)) {
+          // coin du GARDEN inaccessible dans l'axe (tank collé au mur) : on se décale vers le
+          // centre du terrain tant qu'on attrape encore des POLLEN
+          for (let dx = 1; dx <= 20; dx++) {
+            const x = pose.x + dx;
+            if (pose.reach(x) <= 0) break;
+            if (self.planner.isFree(x, pose.y) || freeAlong(x, pose.y, pose.h)) { pose.x = x; break; }
+          }
+        }
         const n = Math.min(4 - st.held, st.avail[a.src], pose.reach(pose.x));
         if (n <= 0) continue;
         const nom = a.src === 'jardin' ? 'GARDEN' : (world.flowers.find((f) => f.id === a.src) || {}).nom;
@@ -304,7 +400,8 @@
     const final = BZ.poseAt(st.prims, plan.start, T);
 
     // Espérance du nombre de bascules (programmation dynamique exacte sur les tirs).
-    let dist = new Map([[world.startNectar + ',0', 1]]);
+    const r3 = (v) => Math.round(v * 1000) / 1000;
+    let dist = new Map([[r3(world.startFill) + ',0', 1]]);
     for (const s of st.shots) {
       if (s.t > T) break;
       const next = new Map();
@@ -314,8 +411,8 @@
         const p = BZ.hitProb(world, robot, s.x, s.y, s.aim, cell);
         const add = (k, v) => next.set(k, (next.get(k) || 0) + v);
         if (p > 0) {
-          const f2 = fill + 1;
-          add(f2 >= game.seuilBascule ? '0,' + (tips + 1) : f2 + ',' + tips, pr * p);
+          const f2 = r3(fill + 1);
+          add(BZ.tipsAt(f2, game) ? '0,' + (tips + 1) : f2 + ',' + tips, pr * p);
         }
         if (p < 1) add(key, pr * (1 - p));
       }

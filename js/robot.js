@@ -60,8 +60,9 @@
       alliance: 'red',
       dureeAuto: 30,
       margeSecurite: 1.0, // secondes gardées en réserve à la fin de l'AUTO
-      seuilBascule: 8, // éléments dans la CELL du haut pour la faire basculer (3 NECTAR + 5 POLLEN, ou 8 POLLEN)
-      v: 2,
+      seuilBascule: 8, // poids à atteindre dans la CELL du haut pour la faire basculer (8 POLLEN)
+      poidsNectar: 1.67, // un NECTAR pèse autant que ~1,67 POLLEN : 3 NECTAR + 3 POLLEN = 8
+      v: 3,
       nectarDepart: 3, // NECTAR déjà dans la CELL du haut au départ (manuel TU04 : 3)
       prechargees: 4,
       zonePartenaire: null, // {x0,y0,x1,y1} en pouces (repère rouge) que l'IA doit éviter

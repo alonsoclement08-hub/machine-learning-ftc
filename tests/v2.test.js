@@ -5,7 +5,7 @@ const { BZ, FIELD } = require('./load');
 
 function setup(gameOver) {
   const robot = BZ.defaultRobot();
-  const game = Object.assign(BZ.defaultGame(), { seuilBascule: 6 }, gameOver || {});
+  const game = Object.assign(BZ.defaultGame(), { seuilBascule: 6, poidsNectar: 1 }, gameOver || {});
   const rd = BZ.robotDerived(robot);
   const world = BZ.buildWorld(FIELD, game, rd);
   const planner = new BZ.Planner(world, 2);
@@ -140,11 +140,32 @@ test('le code du worker STEP est du JavaScript valide (sinon : repli qui fige la
 
 test('tir partiel : on peut garder des balles pour plus tard', () => {
   const { sim, world } = setup();
-  const res = sim.run({ start: frontStart(world), actions: [{ type: 'tir', x: -40, y: -45, n: 3 }, { type: 'tir', x: -40, y: -40 }, { type: 'tir', x: -20, y: 50 }], park: { on: false, t: 0 } });
+  const res = sim.run({ start: frontStart(world), actions: [{ type: 'tir', x: -40, y: -45, n: 3 }, { type: 'tir', x: -20, y: 50 }], park: { on: false, t: 0 } });
   const feeds = res.prims.filter((p) => p.k === 'feed').map((p) => p.n);
-  // après la bascule (3 NECTAR + 3), le 2e tir (même côté) est inutile : il est sauté ; le 3e tire de l'autre côté
+  // 3 balles (3 NECTAR + 3 = bascule), la 4e est gardée et tirée de l'autre côté de la HIVE
   assert.deepStrictEqual(feeds, [3, 1]);
   assert.ok(res.shots[3].y > 0, 'dernier tir depuis l\'autre côté de la HIVE');
+});
+
+test('balles de marge : tirer plus que nécessaire dans la même CELL rend la bascule plus sûre', () => {
+  const { sim, world } = setup();
+  const start = frontStart(world);
+  const juste = sim.run({ start, actions: [{ type: 'tir', x: -40, y: -45, n: 3 }], park: { on: false, t: 0 } });
+  const marge = sim.run({ start, actions: [{ type: 'tir', x: -40, y: -45 }], park: { on: false, t: 0 } });
+  assert.strictEqual(marge.shots.length, 4);
+  assert.ok(marge.tipsAtLeast[1] > juste.tipsAtLeast[1] + 0.05, `${marge.tipsAtLeast[1]} > ${juste.tipsAtLeast[1]}`);
+});
+
+test('NECTAR plus lourds : 3 NECTAR (poids 1,67) + 3 POLLEN font basculer une CELL de 8', () => {
+  const { sim, world, robot, game } = setup({ seuilBascule: 8, poidsNectar: 1.67 });
+  assert.ok(Math.abs(world.startFill - 5.01) < 1e-9);
+  const res = sim.run({ start: frontStart(world), actions: [{ type: 'tir', x: -40, y: -45, n: 3 }], park: { on: false, t: 0 } });
+  const out = BZ.shotOutcomes(res, world, robot, game, null);
+  assert.strictEqual(out.tips.length, 1);
+  assert.ok(Math.abs(out.tips[0] - res.shots[2].tArr) < 1e-9 || Math.abs(out.tips[0] - (res.shots[2].t + BZ.FLIGHT)) < 1e-9);
+  // ensuite il faut 8 POLLEN pour la bascule suivante
+  const scene = BZ.hiveScene(FIELD, { alliance: 'red', world, game, robot, outcomes: out, result: res }, 29);
+  assert.strictEqual(scene.weight, 0);
 });
 
 test('précision : meilleure en face de l\'ouverture à la distance idéale qu\'en biais ou trop loin', () => {

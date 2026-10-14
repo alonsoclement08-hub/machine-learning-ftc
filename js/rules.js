@@ -41,6 +41,14 @@
   };
 
   // Construit le "monde" utilisé par le simulateur à partir du terrain et du robot.
+  // Poids d'un NECTAR en "équivalent POLLEN" (les NECTAR sont plus lourds).
+  BZ.nectarWeight = function (game) {
+    const w = game && game.poidsNectar;
+    return typeof w === 'number' && isFinite(w) && w > 0 ? w : 1;
+  };
+  // La CELL bascule quand son poids atteint le seuil (petite tolérance pour les arrondis).
+  BZ.tipsAt = function (fill, game) { return fill >= game.seuilBascule - 1e-6; };
+
   BZ.buildWorld = function (FIELD, game, rd) {
     const half = FIELD.half;
     const red = (o) => o.alliance === 'red';
@@ -80,7 +88,7 @@
       obstacles.push({ kind: 'partner', rule: 'PARTENAIRE', poly: G.rectPoly(z.x0, z.y0, z.x1, z.y1) });
     }
     const cells = FIELD.hive.cells.red;
-    return {
+    const w = {
       half,
       flowers,
       garden,
@@ -94,6 +102,9 @@
       startNectar: game.nectarDepart !== undefined && game.nectarDepart !== null ? game.nectarDepart : (cells.startNectar || 3),
       rd,
     };
+    // poids de départ dans la CELL : les NECTAR sont plus lourds que les POLLEN
+    w.startFill = w.startNectar * BZ.nectarWeight(game);
+    return w;
   };
 
   // Vérifie une pose du robot (rectangle) et renvoie la liste des règles enfreintes.

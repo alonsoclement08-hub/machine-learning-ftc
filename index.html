@@ -12,7 +12,7 @@
     <span class="logo" aria-hidden="true">🐝</span>
     <div>
       <h1>BIOBUZZ Auto IA</h1>
-      <p class="sub">FTC 2026-2027 · l'IA cherche le meilleur AUTO de 30 s pour votre robot · <span class="mono" id="appVersion">v9 · 14/10</span></p>
+      <p class="sub">FTC 2026-2027 · l'IA cherche le meilleur AUTO de 30 s pour votre robot · <span class="mono" id="appVersion">v10 · 14/10</span></p>
     </div>
   </div>
   <div class="score-strip" id="scoreStrip">
@@ -145,9 +145,13 @@
           <label>Alliance
             <select name="alliance"><option value="red">Rouge</option><option value="blue">Bleue</option></select>
           </label>
-          <label>Balles pour faire basculer
+          <label>Poids pour faire basculer (en POLLEN)
             <input name="seuilBascule" type="number" min="1" max="20" step="1">
-            <small>dans la CELL du haut, NECTAR compris (8 = 3 NECTAR + 5 POLLEN, ou 8 POLLEN). À vérifier sur un vrai terrain.</small>
+            <small>poids de la CELL du haut qui la fait basculer : 8 POLLEN. À vérifier sur un vrai terrain.</small>
+          </label>
+          <label>Poids d'un NECTAR (en POLLEN)
+            <input name="poidsNectar" type="number" min="0.5" max="4" step="0.01">
+            <small>1,67 : 3 NECTAR + 3 POLLEN font basculer. Mettre 1 si un NECTAR compte comme un POLLEN.</small>
           </label>
           <label>NECTAR dans la CELL au départ
             <input name="nectarDepart" type="number" min="0" max="10" step="1">

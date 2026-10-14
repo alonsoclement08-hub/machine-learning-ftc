@@ -56,16 +56,20 @@
     const oc2 = st.outcomes || { shots: [], tips: [] };
 
     // Déroulé chronologique du contenu de la CELL du haut
+    const wN = BZ.nectarWeight ? BZ.nectarWeight(game) : 1;
     let contents = [];
+    let weight = nectar0 * wN;
     for (let i = 0; i < nectar0; i++) contents.push('nectar-' + ours);
     let state = 0;
     const tips = []; // {t, from, balls}
     for (const s of oc2.shots) {
       if (!s.hit || s.tArr > t) continue;
       contents.push('pollen');
-      if (contents.length >= game.seuilBascule) {
+      weight += 1;
+      if (weight >= game.seuilBascule - 1e-6) {
         tips.push({ t: s.tArr, from: state, balls: contents });
         contents = [];
+        weight = 0;
         state ^= 1;
       }
     }
@@ -82,6 +86,7 @@
     out.upState = state;
     out.tipping = tipping;
     out.fill = contents.length;
+    out.weight = Math.round(weight * 10) / 10;
 
     // Balles dans la CELL du haut actuelle
     const slots = cells.states[state].slots;

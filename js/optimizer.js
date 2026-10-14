@@ -76,7 +76,7 @@
   // après chaque bascule (l'ouverture de la CELL change de côté), ramasse entre deux tirs.
   Optimizer.prototype.smartPlan = function () {
     const seuil = this.game.seuilBascule;
-    let fill = this.world.startNectar, state = 0, held = Math.min(4, this.game.prechargees);
+    let fill = this.world.startFill, state = 0, held = Math.min(4, this.game.prechargees);
     const avail = { jardin: this.world.garden.balls.length };
     for (const f of this.world.flowers) avail[f.id] = f.pollen;
     const order = this.sources.slice().sort(() => this.rand() - 0.5);
@@ -84,13 +84,13 @@
     let srcI = 0;
     while (actions.length < this.maxActions - 1) {
       if (held > 0) {
-        const need = seuil - fill;
+        const need = Math.max(1, Math.ceil(seuil - fill - 1e-6));
         // soit juste ce qu'il faut (+1 de marge si possible), soit tout
         let n = this.rand() < 0.6 ? Math.min(held, need + (this.rand() < 0.5 ? 1 : 0)) : held;
         n = Math.max(1, n);
         actions.push(Object.assign(this.randomShot(state), { n: n === held ? undefined : n }));
         held -= n; fill += n;
-        if (fill >= seuil) { fill = 0; state ^= 1; }
+        if (BZ.tipsAt(fill, this.game)) { fill = 0; state ^= 1; }
       } else {
         let k = 0;
         while (k < order.length && !(avail[order[(srcI + k) % order.length]] > 0)) k++;
@@ -107,6 +107,72 @@
       actions,
       park: { on: this.game.viserPark && this.rand() < 0.5, t: this.rand() },
     };
+  };
+
+  // Point de tir sûr (presque la meilleure précision possible) qui fait le moins de chemin
+  // entre d'où l'on vient et où l'on va ensuite.
+  Optimizer.prototype.spotBetween = function (state, from, to) {
+    const best = this.bestSpots[state];
+    if (!best || !best.length) return null;
+    const ok = best.filter((s) => s.p >= best[0].p - 0.02);
+    let pick = null, bc = Infinity;
+    for (const s of ok) {
+      const c = (from ? G.dist(from.x, from.y, s.x, s.y) : 0) + (to ? G.dist(s.x, s.y, to.x, to.y) : 0) + this.rand() * 6;
+      if (c < bc) { bc = c; pick = s; }
+    }
+    return pick;
+  };
+
+  // Stratégie de l'équipe : tirer les balles préchargées (les 3 NECTAR déjà dans la CELL
+  // suffisent presque : 1re bascule), FLOWER 1 -> tir de l'autre côté, FLOWER 2 -> tir (2e bascule),
+  // GARDEN -> tir pour commencer à remplir la CELL suivante, puis PARK. L'IA part de là et
+  // optimise ensuite les points de tir, le départ et les manœuvres.
+  Optimizer.prototype.teamPlan = function () {
+    const world = this.world, game = this.game;
+    const flowers = world.flowers.map((f) => f.id);
+    if (this.rand() < 0.5) flowers.reverse();
+    const order = flowers.concat(['jardin']);
+    const pose = (src) => BZ.pickupPose(world, src);
+    const parkP = BZ.parkPose(world, 0.5, 0);
+    let fill = world.startFill, state = 0, held = Math.min(4, game.prechargees);
+    const actions = [];
+    // départ : au plus près du premier point de tir (ou au hasard, pour varier)
+    const firstSpot = this.spotBetween(0, null, pose(order[0]));
+    let startIdx = Math.floor(this.rand() * this.starts.length);
+    if (firstSpot && this.rand() < 0.7) {
+      let bd = Infinity;
+      this.starts.forEach((s, i) => {
+        const d = G.dist(s.x, s.y, firstSpot.x, firstSpot.y) + this.rand() * 10;
+        if (d < bd) { bd = d; startIdx = i; }
+      });
+    }
+    let here = this.starts[startIdx];
+    let lastState = 0;
+    const shoot = (next, nWanted, insurance) => {
+      if (held <= 0) return;
+      // "marge" : on retire dans la CELL précédente au cas où un raté aurait empêché la bascule
+      const target = insurance ? lastState : state;
+      lastState = target;
+      const s = this.spotBetween(target, here, next);
+      if (!s) return;
+      const n = Math.max(1, Math.min(held, nWanted || held));
+      actions.push({ type: 'tir', x: s.x, y: s.y, n: n === held ? undefined : n });
+      here = s;
+      held -= n; fill += n;
+      if (BZ.tipsAt(fill, game)) { fill = 0; state ^= 1; }
+    };
+    const need = Math.max(1, Math.ceil(game.seuilBascule - fill - 1e-6));
+    // juste ce qu'il faut pour la 1re bascule, ou une balle de plus en cas de raté
+    shoot(pose(order[0]), this.rand() < 0.5 ? need : need + 1);
+    for (let i = 0; i < order.length; i++) {
+      const p = pose(order[i]);
+      if (!p) continue;
+      actions.push({ type: 'ramasse', src: order[i] });
+      held = Math.min(4, held + 4);
+      here = p;
+      shoot(i + 1 < order.length ? pose(order[i + 1]) : parkP, undefined, state !== lastState && this.rand() < 0.5);
+    }
+    return { startIdx, actions: actions.slice(0, this.maxActions), park: { on: !!game.viserPark, t: this.rand() } };
   };
 
   Optimizer.prototype.randomAction = function () {
@@ -141,7 +207,9 @@
 
   Optimizer.prototype.seedPopulation = function () {
     this.pop = [];
-    for (let i = 0; i < this.popSize; i++) this.pop.push(i % 3 === 0 ? this.smartPlan() : this.randomPlan());
+    for (let i = 0; i < this.popSize; i++) {
+      this.pop.push(i % 3 === 0 ? this.teamPlan() : i % 3 === 1 ? this.smartPlan() : this.randomPlan());
+    }
   };
 
   Optimizer.prototype.clone = function (g) {
@@ -218,8 +286,9 @@
       const c = this.clone(best);
       if (shotIdx.length && this.rand() < 0.8) {
         const a = c.actions[this.pick(shotIdx)];
-        if (this.rand() < 0.5) a.x += this.pick(steps) * (this.rand() < 0.3 ? 2 : 1);
-        else a.y += this.pick(steps) * (this.rand() < 0.3 ? 2 : 1);
+        const k = this.pick([0.5, 1, 1, 2]); // pas de 1,5 / 3 / 6 in
+        if (this.rand() < 0.5) a.x += this.pick(steps) * k;
+        else a.y += this.pick(steps) * k;
         a.x = Math.min(-this.rd.radius, Math.max(-this.world.half + this.rd.radius, a.x));
         a.y = Math.min(this.world.half - this.rd.radius, Math.max(-this.world.half + this.rd.radius, a.y));
       } else {
@@ -244,7 +313,8 @@
     const next = this.pop.slice(0, 4); // élitisme
     // un peu de sang neuf à chaque génération
     for (let i = 0; i < 2; i++) next.push(this.randomPlan());
-    for (let i = 0; i < 3; i++) next.push(this.smartPlan());
+    for (let i = 0; i < 2; i++) next.push(this.smartPlan());
+    for (let i = 0; i < 2; i++) next.push(this.teamPlan());
     while (next.length < this.popSize) {
       let child;
       if (this.rand() < 0.35) child = this.crossover(this.tournament(), this.tournament());

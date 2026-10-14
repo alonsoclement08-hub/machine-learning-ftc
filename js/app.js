@@ -22,6 +22,8 @@
   if (saved && saved.game) { game.zonePartenaire = saved.game.zonePartenaire || null; game.departImpose = saved.game.departImpose || null; }
   // anciennes versions : seuil de bascule à 6 par défaut -> 8 (3 NECTAR + 5 POLLEN)
   if (saved && saved.game && !saved.game.v) { if (game.seuilBascule === 6) game.seuilBascule = 8; game.v = 2; }
+  // v3 : les NECTAR pèsent plus lourd (poidsNectar) ; le seuil est un poids en POLLEN
+  if (saved && saved.game && (saved.game.v || 0) < 3) { game.poidsNectar = BZ.defaultGame().poidsNectar; game.v = 3; }
 
   let opt = null; // Optimizer courant
   let best = null; // meilleur résultat
