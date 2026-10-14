@@ -74,6 +74,7 @@ function save(final) {
     `- Durée d'entraînement : ${summary.minutes} min · ${runs} essais · ${gens} générations · ${evals} stratégies testées`,
     `- **Score AUTO espéré : ${best.expected.toFixed(1)} pts** (LEAVE ${best.leave ? 'oui' : 'non'}, PARK ${best.park ? 'oui' : 'non'}, bascules espérées ${best.eTips.toFixed(2)} / max ${best.nominalTips})`,
     `- Durée du plan : ${best.endT.toFixed(1)} s · Fautes : ${best.faults.length ? best.faults.map((f) => f.rule).join(', ') : 'aucune'}`,
+    `- Chances : ` + [1, 2, 3].map((k) => `${k}+ bascule(s) ${Math.round((best.tipsAtLeast ? best.tipsAtLeast[k] : 0) * 100)} %`).join(' · '),
     '', '## Placement de départ', ...startText.map((s) => '- ' + s), '',
     '## Étapes', ...best.prims.filter((p) => p.label).map((p) => `- ${p.t0.toFixed(1)} s : ${p.label}`),
   ];

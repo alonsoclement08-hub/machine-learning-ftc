@@ -193,6 +193,10 @@
       items.push(`<li${now}><span class="t">${p.t0.toFixed(1)} s</span>${p.label}</li>`);
     }
     items.push(`<li><span class="t">${best.endT.toFixed(1)} s</span>Fin · LEAVE ${best.leave ? '✓' : '✗'} · PARK ${best.park ? '✓' : '✗'}</li>`);
+    if (best.tipsAtLeast) {
+      const ch = [1, 2, 3].filter((k) => k <= Math.max(1, best.nominalTips)).map((k) => `${k} bascule${k > 1 ? 's' : ''} ou plus : <b>${Math.round(best.tipsAtLeast[k] * 100)} %</b>`);
+      items.push(`<li class="chances">Chances (avec la précision du lanceur) : ${ch.join(' · ')}</li>`);
+    }
     ol.innerHTML = items.join('');
     $('faultList').innerHTML = best.faults.length
       ? best.faults.map((f) => `<p>⚠ <b>${f.rule}</b> ${(BZ.RULES[f.rule] || {}).titre || ''} ${f.info ? '(' + f.info + ')' : ''} à ${f.t.toFixed(1)} s</p>`).join('')

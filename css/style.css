@@ -194,3 +194,4 @@ input.dim[readonly] { opacity: 0.75; background: transparent; }
 .bar > i { display: block; height: 100%; background: var(--accent); }
 .sess .row { margin: 4px 0 0; }
 .sess .btn { padding: 4px 9px; font-size: 12px; }
+.steps li.chances { list-style: none; margin-top: 6px; color: var(--ink-2); }

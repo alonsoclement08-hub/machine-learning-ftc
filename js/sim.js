@@ -55,12 +55,19 @@
     const a = Math.atan2(cell.y - y, cell.x - x);
     const tolA = Math.atan2(7, d); // ouverture utile de la CELL ~ 20 in de large
     if (Math.abs(G.wrap(a - aim)) > tolA) return 0;
+    // La précision est maximale à la distance idéale et bien en face de l'ouverture.
+    let fa = 1;
     if (cell.normal) {
       const back = Math.atan2(y - cell.y, x - cell.x); // direction CELL -> tireur
       const n = Math.atan2(cell.normal[1], cell.normal[0]);
-      if (Math.abs(G.wrap(back - n)) > BZ.OPEN_HALF_ANGLE) return 0; // derrière la CELL : la balle tape le dessus
+      const off = Math.abs(G.wrap(back - n));
+      if (off > BZ.OPEN_HALF_ANGLE) return 0; // derrière la CELL : la balle tape le dessus
+      fa = 1 - 0.3 * Math.pow(off / BZ.OPEN_HALF_ANGLE, 2);
     }
-    return Math.max(0, Math.min(1, robot.lanceur.precision));
+    const ideal = rd.tirIdeal || (rd.tirMin + rd.tirMax) / 2;
+    const span = d <= ideal ? Math.max(1, ideal - rd.tirMin) : Math.max(1, rd.tirMax - ideal);
+    const fd = 1 - 0.25 * Math.pow((d - ideal) / span, 2);
+    return Math.max(0, Math.min(1, robot.lanceur.precision * fa * fd));
   };
 
   // Déroulé d'un match pour l'animation : pour chaque tir, la balle entre-t-elle, dans quelle CELL,
@@ -212,12 +219,18 @@
         const cell = world.cellTargets[st.tipsBelief % 2];
         const aimAt = Math.atan2(cell.y - a.y, cell.x - a.x);
         const hF = G.wrap(aimAt - rd.tirSens);
-        const label = `Tir de ${st.held} balle(s)`;
+        // depuis ce point, la CELL du haut (selon le compte du robot) est-elle atteignable ?
+        // sinon (mauvais côté de la HIVE, trop loin…) on ne tire pas et on garde les balles.
+        if (BZ.hitProb(world, robot, a.x, a.y, aimAt, cell) <= 0) continue;
+        // Nombre de balles tirées : choisi par l'IA (on peut en garder pour plus tard). Tirer
+        // exactement ce qu'il faut est risqué (un raté = pas de bascule) : l'IA arbitre.
+        const nTir = Math.max(1, Math.min(st.held, a.n || st.held));
+        const label = `Tir de ${nTir} balle(s)` + (nTir < st.held ? ` (garde ${st.held - nTir})` : '');
         ensureLauncher();
         if (!goTo(a.x, a.y, hF, 'Vers position de tir')) break;
         const waitSpin = robot.lanceur.monteeMs / 1000 - (st.t - st.launcherT);
         if (waitSpin > 0) pushPrim({ k: 'wait', ms: Math.round(waitSpin * 1000), dur: waitSpin, label: 'Montée du lanceur' });
-        const n = st.held;
+        const n = nTir;
         const tFeed0 = st.t;
         pushPrim({ k: 'feed', n, ms: robot.lanceur.msParBalle * n, dur: (robot.lanceur.msParBalle * n) / 1000, label });
         for (let b = 0; b < n; b++) {
@@ -225,7 +238,7 @@
           st.fill++;
           if (st.fill >= game.seuilBascule) { st.tipsBelief++; st.fill = 0; st.events.push({ t: st.shots[st.shots.length - 1].t + BZ.FLIGHT, type: 'tip' }); }
         }
-        st.held = 0;
+        st.held -= n;
         // on n'éteint le lanceur que si on ne retire pas juste après
         const next = actions.slice(ai + 1).find((x) => x.type === 'tir');
         if (!next) launcherOff();
@@ -304,12 +317,17 @@
       }
       dist = next;
     }
-    let eTips = 0, pAtLeast1 = 0;
+    let eTips = 0, pAtLeast1 = 0, eFill = 0;
+    const tipsDist = [0, 0, 0, 0, 0, 0]; // probabilité d'avoir exactement k bascules
     for (const [key, pr] of dist) {
-      const tips = Number(key.split(',')[1]);
+      const [fill, tips] = key.split(',').map(Number);
       eTips += tips * pr;
+      eFill += fill * pr;
       if (tips >= 1) pAtLeast1 += pr;
+      tipsDist[Math.min(5, tips)] += pr;
     }
+    // chances d'au moins k bascules
+    const tipsAtLeast = tipsDist.map((_, k) => tipsDist.slice(k).reduce((a, b) => a + b, 0));
 
     const leave = st.moved && !BZ.touchesWall(world, final.x, final.y, final.h, 0.25);
     const park = BZ.inLoadingZone(world, final.x, final.y, final.h);
@@ -325,11 +343,12 @@
     const expected = BZ.POINTS.LEAVE * (leave ? 1 : 0) + BZ.POINTS.PARK * (park ? 1 : 0) + BZ.POINTS.TIP * eTips;
     const nominalTips = BZ.shotOutcomes({ shots: st.shots }, world, robot, game, null).tips.length;
     const marge = Math.max(0, endT - (T - game.margeSecurite));
-    let fitness = expected - 3 * penalty - 25 * internal - 15 * marge - 0.05 * endT;
+    // petit bonus pour les balles déjà dans la CELL : guide l'IA vers la bascule suivante
+    let fitness = expected + 3 * (eFill / game.seuilBascule) - 3 * penalty - 25 * internal - 15 * marge - 0.05 * endT;
     if (st.faults.G304) fitness -= 1000;
     return {
       plan, prims: st.prims, shots: st.shots, events: st.events, faults,
-      endT, final, leave, park, eTips, pAtLeast1, nominalTips,
+      endT, final, leave, park, eTips, pAtLeast1, nominalTips, tipsAtLeast,
       expected, penalty, fitness,
       legal: penalty === 0 && internal === 0,
     };

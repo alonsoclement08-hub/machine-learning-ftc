@@ -15,11 +15,12 @@
     this.sim = new BZ.Sim(this.world, this.planner, robot, game);
     this.rand = G.rng(opts.seed || 12345);
     this.popSize = opts.popSize || 70;
-    this.maxActions = 7;
+    this.maxActions = 10;
     this.starts = game.departImpose ? [game.departImpose] : BZ.legalStarts(this.world, 3);
     if (!this.starts.length) throw new Error('Aucune position de départ légale : robot trop grand ?');
     this.sources = ['jardin'].concat(this.world.flowers.map((f) => f.id));
     this.shootSpots = this.computeShootSpots();
+    this.bestSpots = this.rankSpots();
     this.generation = 0;
     this.history = [];
     this.best = null;
@@ -43,12 +44,69 @@
     return spots;
   };
 
+  // Meilleurs points de tir pour chaque état de la HIVE (CELL du haut d'un côté ou de l'autre),
+  // classés par probabilité de marquer (en face de l'ouverture, à la distance idéale).
+  Optimizer.prototype.rankSpots = function () {
+    return this.world.cellTargets.map((c) => this.shootSpots
+      .map(([x, y]) => ({ x, y, p: BZ.hitProb(this.world, this.robot, x, y, Math.atan2(c.y - y, c.x - x), c) }))
+      .filter((s) => s.p > 0)
+      .sort((a, b) => b.p - a.p)
+      .slice(0, 25));
+  };
+
   Optimizer.prototype.pick = function (arr) { return arr[Math.floor(this.rand() * arr.length)]; };
 
-  Optimizer.prototype.randomShot = function () {
+  // Nombre de balles tirées : souvent "toutes", parfois 1 à 4 (pour en garder pour plus tard).
+  Optimizer.prototype.randomN = function () {
+    return this.rand() < 0.55 ? undefined : 1 + Math.floor(this.rand() * 4);
+  };
+
+  Optimizer.prototype.randomShot = function (state) {
+    const best = state !== undefined ? this.bestSpots[state] : null;
+    if (best && best.length && this.rand() < 0.7) {
+      const s = this.pick(best.slice(0, 10));
+      return { type: 'tir', x: s.x, y: s.y, n: this.randomN() };
+    }
     if (!this.shootSpots.length) return { type: 'tir', x: -40, y: 0 };
     const s = this.pick(this.shootSpots);
-    return { type: 'tir', x: s[0], y: s[1] };
+    return { type: 'tir', x: s[0], y: s[1], n: this.randomN() };
+  };
+
+  // Plan "réfléchi" : tire juste ce qu'il faut pour faire basculer, change de côté de la HIVE
+  // après chaque bascule (l'ouverture de la CELL change de côté), ramasse entre deux tirs.
+  Optimizer.prototype.smartPlan = function () {
+    const seuil = this.game.seuilBascule;
+    let fill = this.world.startNectar, state = 0, held = Math.min(4, this.game.prechargees);
+    const avail = { jardin: this.world.garden.balls.length };
+    for (const f of this.world.flowers) avail[f.id] = f.pollen;
+    const order = this.sources.slice().sort(() => this.rand() - 0.5);
+    const actions = [];
+    let srcI = 0;
+    while (actions.length < this.maxActions - 1) {
+      if (held > 0) {
+        const need = seuil - fill;
+        // soit juste ce qu'il faut (+1 de marge si possible), soit tout
+        let n = this.rand() < 0.6 ? Math.min(held, need + (this.rand() < 0.5 ? 1 : 0)) : held;
+        n = Math.max(1, n);
+        actions.push(Object.assign(this.randomShot(state), { n: n === held ? undefined : n }));
+        held -= n; fill += n;
+        if (fill >= seuil) { fill = 0; state ^= 1; }
+      } else {
+        let k = 0;
+        while (k < order.length && !(avail[order[(srcI + k) % order.length]] > 0)) k++;
+        if (k >= order.length) break;
+        const src = order[(srcI + k) % order.length];
+        srcI += k + 1;
+        const take = Math.min(4, avail[src]);
+        avail[src] -= take; held += take;
+        actions.push({ type: 'ramasse', src });
+      }
+    }
+    return {
+      startIdx: Math.floor(this.rand() * this.starts.length),
+      actions,
+      park: { on: this.game.viserPark && this.rand() < 0.5, t: this.rand() },
+    };
   };
 
   Optimizer.prototype.randomAction = function () {
@@ -83,7 +141,7 @@
 
   Optimizer.prototype.seedPopulation = function () {
     this.pop = [];
-    for (let i = 0; i < this.popSize; i++) this.pop.push(this.randomPlan());
+    for (let i = 0; i < this.popSize; i++) this.pop.push(i % 3 === 0 ? this.smartPlan() : this.randomPlan());
   };
 
   Optimizer.prototype.clone = function (g) {
@@ -112,9 +170,13 @@
     } else if (r < 0.64 && A.length > 1) {
       const i = Math.floor(this.rand() * A.length), j = Math.floor(this.rand() * A.length);
       [A[i], A[j]] = [A[j], A[i]];
-    } else if (r < 0.72) {
+    } else if (r < 0.68) {
       const pk = A.filter((a) => a.type === 'ramasse');
       if (pk.length) this.pick(pk).src = this.pick(this.sources);
+    } else if (r < 0.74) {
+      // change le nombre de balles d'un tir
+      const shots = A.filter((a) => a.type === 'tir');
+      if (shots.length) this.pick(shots).n = this.randomN();
     } else if (r < 0.86) {
       if (this.rand() < 0.6) {
         const d = Math.round((this.rand() - 0.5) * 6);
@@ -153,7 +215,8 @@
     this.history.push({ gen: this.generation, best: this.best.result.fitness, expected: this.best.result.expected });
     const next = this.pop.slice(0, 4); // élitisme
     // un peu de sang neuf à chaque génération
-    for (let i = 0; i < 4; i++) next.push(this.randomPlan());
+    for (let i = 0; i < 2; i++) next.push(this.randomPlan());
+    for (let i = 0; i < 3; i++) next.push(this.smartPlan());
     while (next.length < this.popSize) {
       let child;
       if (this.rand() < 0.35) child = this.crossover(this.tournament(), this.tournament());

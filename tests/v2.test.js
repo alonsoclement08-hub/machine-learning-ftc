@@ -137,3 +137,34 @@ test('le code du worker STEP est du JavaScript valide (sinon : repli qui fige la
   // eslint-disable-next-line no-new-func
   assert.doesNotThrow(() => new Function(BZ._workerCode));
 });
+
+test('tir partiel : on peut garder des balles pour plus tard', () => {
+  const { sim, world } = setup();
+  const res = sim.run({ start: frontStart(world), actions: [{ type: 'tir', x: -40, y: -45, n: 3 }, { type: 'tir', x: -40, y: -40 }, { type: 'tir', x: -20, y: 50 }], park: { on: false, t: 0 } });
+  const feeds = res.prims.filter((p) => p.k === 'feed').map((p) => p.n);
+  // après la bascule (3 NECTAR + 3), le 2e tir (même côté) est inutile : il est sauté ; le 3e tire de l'autre côté
+  assert.deepStrictEqual(feeds, [3, 1]);
+  assert.ok(res.shots[3].y > 0, 'dernier tir depuis l\'autre côté de la HIVE');
+});
+
+test('précision : meilleure en face de l\'ouverture à la distance idéale qu\'en biais ou trop loin', () => {
+  const { world, robot } = setup();
+  const c = world.cellTargets[0];
+  const p = (x, y) => BZ.hitProb(world, robot, x, y, Math.atan2(c.y - y, c.x - x), c);
+  const ideal = world.rd.tirIdeal;
+  const face = p(c.x, c.y - ideal);
+  const biais = p(c.x - ideal * 0.8, c.y - ideal * 0.6);
+  const loin = p(c.x, c.y - world.rd.tirMax + 1);
+  assert.ok(face > biais && face > loin, `face ${face} biais ${biais} loin ${loin}`);
+});
+
+test('reproductible : un plan rejoué avec un simulateur neuf donne le même score', () => {
+  const robot = BZ.defaultRobot();
+  const opt = new BZ.Optimizer(FIELD, robot, BZ.defaultGame(), { seed: 11, popSize: 40 });
+  for (let i = 0; i < 20; i++) opt.step();
+  const r = opt.bestResult();
+  const fresh = new BZ.Optimizer(FIELD, robot, BZ.defaultGame(), { seed: 99, popSize: 2 });
+  const again = fresh.sim.run(r.plan);
+  assert.strictEqual(again.shots.length, r.shots.length);
+  assert.ok(Math.abs(again.expected - r.expected) < 1e-9, `${again.expected} vs ${r.expected}`);
+});

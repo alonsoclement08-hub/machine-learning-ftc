@@ -44,7 +44,11 @@ test('barème : LEAVE + PARK + bascule', () => {
   assert.strictEqual(res.park, true);
   // 3 NECTAR + 4 POLLEN >= 6 : une bascule si au moins 3 balles sur 4 entrent
   assert.strictEqual(res.nominalTips, 1);
-  const p = 0.85, pTip = p ** 4 + 4 * p ** 3 * (1 - p);
+  // la précision dépend de la position de tir (distance idéale, face à l'ouverture)
+  const s0 = res.shots[0];
+  const p = BZ.hitProb(world, BZ.defaultRobot(), s0.x, s0.y, s0.aim, world.cellTargets[0]);
+  assert.ok(p > 0.5 && p <= 0.85, `p=${p}`);
+  const pTip = p ** 4 + 4 * p ** 3 * (1 - p);
   assert.ok(Math.abs(res.eTips - pTip) < 1e-9, `eTips=${res.eTips} attendu ${pTip}`);
   assert.ok(Math.abs(res.expected - (3 + 5 + 20 * pTip)) < 1e-9);
 });

@@ -27,6 +27,7 @@
         sens: 'avant', // 'avant' ou 'arriere' : côté du robot par lequel il tire
         distMin_cm: 60, // distance horizontale min jusqu'à la CELL
         distMax_cm: 260,
+        distIdeale_cm: 150, // distance où le tir est le plus précis
         precision: 0.85, // probabilité qu'une balle entre dans la CELL quand on est à bonne distance
         monteeMs: 900, // temps de montée en vitesse du lanceur
         msParBalle: 400, // cadence de tir
@@ -81,6 +82,7 @@
       pause: r.pauseMs / 1000,
       tirMin: r.lanceur.distMin_cm * IN,
       tirMax: r.lanceur.distMax_cm * IN,
+      tirIdeal: Math.min(r.lanceur.distMax_cm, Math.max(r.lanceur.distMin_cm, r.lanceur.distIdeale_cm || (r.lanceur.distMin_cm + r.lanceur.distMax_cm) / 2)) * IN,
       tirSens: r.lanceur.sens === 'arriere' ? Math.PI : 0,
       intakeSens: r.intake.sens === 'arriere' ? Math.PI : 0,
       approche: r.intake.approche_cm * IN,

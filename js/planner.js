@@ -71,7 +71,8 @@
 
   // Renvoie une liste de points [[x,y],...] du point A au point B (inclus), ou null.
   Planner.prototype.path = function (ax, ay, bx, by) {
-    const key = [ax, ay, bx, by].map((v) => Math.round(v * 2)).join(',');
+    // clé exacte : un chemin mémorisé pour un point voisin donnerait un plan non reproductible
+    const key = ax + ',' + ay + ',' + bx + ',' + by;
     if (this.cache.has(key)) return this.cache.get(key);
     const res = this._path(ax, ay, bx, by);
     if (this.cache.size > 20000) this.cache.clear();
