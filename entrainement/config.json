@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "minutes": 10,
+  "robot": {
+    "nom": "Robot test (par défaut)",
+    "chassis": "mecanum",
+    "longueur_cm": 43,
+    "largeur_cm": 43,
+    "hauteur_cm": 40,
+    "msParMetre": 1500,
+    "msPour180": 1200,
+    "puissanceTir": 0.85,
+    "puissanceRoues": 0.5,
+    "puissanceRotation": 0.5,
+    "facteurCrabe": 0.8,
+    "pauseMs": 150,
+    "lanceur": {
+      "sens": "avant",
+      "distMin_cm": 60,
+      "distMax_cm": 260,
+      "precision": 0.85,
+      "monteeMs": 900,
+      "msParBalle": 400
+    },
+    "intake": {
+      "sens": "avant",
+      "msParBalle": 450,
+      "approche_cm": 10,
+      "puissance": 1,
+      "sol": true,
+      "fleur": true
+    },
+    "moteurs": {
+      "avantGauche": "frontLeft",
+      "avantDroit": "frontRight",
+      "arriereGauche": "backLeft",
+      "arriereDroit": "backRight",
+      "gauche": "leftDrive",
+      "droit": "rightDrive",
+      "lanceur": "launcher",
+      "intake": "intake",
+      "alimentation": ""
+    },
+    "inverserGauche": true
+  },
+  "game": {
+    "alliance": "red",
+    "dureeAuto": 30,
+    "margeSecurite": 1,
+    "seuilBascule": 6,
+    "nectarDepart": 3,
+    "prechargees": 4,
+    "zonePartenaire": null,
+    "departImpose": null,
+    "viserPark": true
+  }
+}
