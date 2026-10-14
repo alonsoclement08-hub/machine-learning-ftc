@@ -5,7 +5,7 @@ const { BZ, FIELD } = require('./load');
 
 function setup(gameOver) {
   const robot = BZ.defaultRobot();
-  const game = Object.assign(BZ.defaultGame(), gameOver || {});
+  const game = Object.assign(BZ.defaultGame(), { seuilBascule: 6 }, gameOver || {});
   const rd = BZ.robotDerived(robot);
   const world = BZ.buildWorld(FIELD, game, rd);
   const planner = new BZ.Planner(world, 2);

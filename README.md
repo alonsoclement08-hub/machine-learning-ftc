@@ -165,7 +165,7 @@ Les données viennent du **CAD officiel du terrain** (`am-5850 BIOBUZZ`, convert
   L'espérance des bascules est calculée exactement.
 
 **Paramètres à vérifier sur un vrai terrain** :
-- le nombre de balles qui font basculer la HIVE (6 par défaut, NECTAR compris) ;
+- le nombre de balles qui font basculer la HIVE (8 par défaut, NECTAR compris : 3 NECTAR + 5 POLLEN) ;
 - la précision du lanceur ;
 - les temps de ramassage.
 

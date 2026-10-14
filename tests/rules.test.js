@@ -7,6 +7,7 @@ function setup(chassis) {
   const robot = BZ.defaultRobot();
   robot.chassis = chassis || 'mecanum';
   const game = BZ.defaultGame();
+  game.seuilBascule = 6; // les tests de barème ci-dessous sont écrits pour un seuil de 6
   const rd = BZ.robotDerived(robot);
   const world = BZ.buildWorld(FIELD, game, rd);
   const planner = new BZ.Planner(world, 2);

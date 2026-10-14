@@ -62,11 +62,15 @@
       const n = Math.atan2(cell.normal[1], cell.normal[0]);
       const off = Math.abs(G.wrap(back - n));
       if (off > BZ.OPEN_HALF_ANGLE) return 0; // derrière la CELL : la balle tape le dessus
-      fa = 1 - 0.3 * Math.pow(off / BZ.OPEN_HALF_ANGLE, 2);
+      // zone sûre : jusqu'à 30° de l'axe de l'ouverture, précision pleine ; au-delà elle baisse
+      const safe = (30 * Math.PI) / 180;
+      fa = off <= safe ? 1 : 1 - 0.3 * Math.pow((off - safe) / (BZ.OPEN_HALF_ANGLE - safe), 2);
     }
     const ideal = rd.tirIdeal || (rd.tirMin + rd.tirMax) / 2;
     const span = d <= ideal ? Math.max(1, ideal - rd.tirMin) : Math.max(1, rd.tirMax - ideal);
-    const fd = 1 - 0.25 * Math.pow((d - ideal) / span, 2);
+    // zone sûre : à ±35 % de la distance idéale, précision pleine ; au-delà elle baisse
+    const dz = Math.max(0, Math.abs(d - ideal) / span - 0.35) / 0.65;
+    const fd = 1 - 0.25 * dz * dz;
     return Math.max(0, Math.min(1, robot.lanceur.precision * fa * fd));
   };
 

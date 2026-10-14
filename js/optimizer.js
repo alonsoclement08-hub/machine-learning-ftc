@@ -207,10 +207,38 @@
     return best;
   };
 
+  // Recherche locale : essaie de déplacer chaque point de tir de quelques pouces (et le départ
+  // d'un cran) et garde ce qui améliore le score. Budget limité d'évaluations par génération.
+  Optimizer.prototype.refine = function (g, budget) {
+    let best = g;
+    const steps = [3, -3];
+    const shotIdx = g.actions.map((a, i) => (a.type === 'tir' ? i : -1)).filter((i) => i >= 0);
+    let tries = 0;
+    for (let k = 0; k < budget && tries < budget; k++) {
+      const c = this.clone(best);
+      if (shotIdx.length && this.rand() < 0.8) {
+        const a = c.actions[this.pick(shotIdx)];
+        if (this.rand() < 0.5) a.x += this.pick(steps) * (this.rand() < 0.3 ? 2 : 1);
+        else a.y += this.pick(steps) * (this.rand() < 0.3 ? 2 : 1);
+        a.x = Math.min(-this.rd.radius, Math.max(-this.world.half + this.rd.radius, a.x));
+        a.y = Math.min(this.world.half - this.rd.radius, Math.max(-this.world.half + this.rd.radius, a.y));
+      } else {
+        c.startIdx = Math.max(0, Math.min(this.starts.length - 1, c.startIdx + this.pick([-1, 1])));
+      }
+      this.evaluate(c);
+      tries++;
+      if (c.result.fitness > best.result.fitness + 1e-9) best = c;
+    }
+    return best;
+  };
+
   // Une génération complète.
   Optimizer.prototype.step = function () {
     for (const g of this.pop) this.evaluate(g);
     this.pop.sort((a, b) => b.result.fitness - a.result.fitness);
+    // affinage du meilleur plan : petits déplacements des points de tir et du départ
+    const refined = this.refine(this.pop[0], 14);
+    if (refined !== this.pop[0]) this.pop.unshift(refined);
     if (!this.best || this.pop[0].result.fitness > this.best.result.fitness) this.best = this.pop[0];
     this.history.push({ gen: this.generation, best: this.best.result.fitness, expected: this.best.result.expected });
     const next = this.pop.slice(0, 4); // élitisme
