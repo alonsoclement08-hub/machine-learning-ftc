@@ -4,22 +4,22 @@
  "session": "39034521101",
  "debut": "2026-10-17T12:56:34.964Z",
  "minutesPrevues": 120,
- "date": "2026-10-17T13:26:35.816Z",
+ "date": "2026-10-17T13:41:36.294Z",
  "termine": false,
- "minutes": 30.01,
- "essais": 256,
- "generations": 32053,
- "strategiesTestees": 3200120,
- "score": 47.17953770578839,
- "bascules": 1.9589768852894194,
+ "minutes": 45.02,
+ "essais": 388,
+ "generations": 48030,
+ "strategiesTestees": 4799748,
+ "score": 47.17953664711256,
+ "bascules": 1.9589768323556283,
  "basculesMax": 2,
- "duree": 27.43364143585447,
+ "duree": 27.433584857124803,
  "leave": true,
  "park": true,
  "fautes": [],
  "plan": {
   "start": {
-   "x": -35.15,
+   "x": -38.15,
    "y": -62.15,
    "h": 1.5707963267948966
   },
@@ -42,6 +42,10 @@
    },
    {
     "type": "ramasse",
+    "src": "fleur1"
+   },
+   {
+    "type": "ramasse",
     "src": "fleur0"
    },
    {
@@ -52,7 +56,7 @@
    },
    {
     "type": "tir",
-    "x": -32.97863643070683,
+    "x": -32.97807705182582,
     "y": 58.63929464920412,
     "n": 4
    },
@@ -61,14 +65,18 @@
     "src": "fleur0"
    },
    {
+    "type": "ramasse",
+    "src": "fleur0"
+   },
+   {
     "type": "tir",
-    "x": -37.19694716496393,
+    "x": -37.197820646353065,
     "y": 58.63929464920412
    }
   ],
   "park": {
    "on": true,
-   "t": 0.6426754691638051
+   "t": 0.6750462617725134
   }
  },
  "robot": {
@@ -129,7 +137,7 @@
  },
  "departTexte": [
   "Repère : vous êtes dans votre ALLIANCE AREA et vous regardez le terrain.",
-  "Bord du robot le plus proche de votre alliance : 69 cm du mur de votre alliance.",
+  "Bord du robot le plus proche de votre alliance : 61 cm du mur de votre alliance.",
   "Bord du robot côté droit : 0 cm du mur de droite ; côté gauche : 316 cm du mur de gauche.",
   "Orientation : l'avant du robot regarde vers votre gauche."
  ],
@@ -204,6 +212,18 @@
   },
   {
    "minute": 16.6,
+   "score": 47.18
+  },
+  {
+   "minute": 36.8,
+   "score": 47.18
+  },
+  {
+   "minute": 38.3,
+   "score": 47.18
+  },
+  {
+   "minute": 43.6,
    "score": 47.18
   }
  ]
