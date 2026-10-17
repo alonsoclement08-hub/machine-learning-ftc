@@ -4,22 +4,22 @@
  "session": "39034521101",
  "debut": "2026-10-17T12:56:34.964Z",
  "minutesPrevues": 120,
- "date": "2026-10-17T14:26:37.572Z",
+ "date": "2026-10-17T14:41:37.991Z",
  "termine": false,
- "minutes": 90.04,
- "essais": 817,
- "generations": 100462,
- "strategiesTestees": 10040264,
+ "minutes": 105.05,
+ "essais": 962,
+ "generations": 117948,
+ "strategiesTestees": 11795344,
  "score": 47.17986977944064,
  "bascules": 1.958993488972032,
  "basculesMax": 2,
- "duree": 27.43525354320587,
+ "duree": 27.435215530236615,
  "leave": true,
  "park": true,
  "fautes": [],
  "plan": {
   "start": {
-   "x": -35.15,
+   "x": -41.15,
    "y": -62.15,
    "h": 1.5707963267948966
   },
@@ -38,8 +38,8 @@
    },
    {
     "type": "tir",
-    "x": -49.61,
-    "y": -34.61,
+    "x": -57.16422254092991,
+    "y": -39.966457461602985,
     "n": 4
    },
    {
@@ -54,7 +54,7 @@
    },
    {
     "type": "tir",
-    "x": -32.887546607889234,
+    "x": -32.886988183148205,
     "y": 58.63929464920412,
     "n": 4
    },
@@ -70,7 +70,7 @@
   ],
   "park": {
    "on": true,
-   "t": 0.9241848320700227
+   "t": 0.8296112971380353
   }
  },
  "robot": {
@@ -131,7 +131,7 @@
  },
  "departTexte": [
   "Repère : vous êtes dans votre ALLIANCE AREA et vous regardez le terrain.",
-  "Bord du robot le plus proche de votre alliance : 69 cm du mur de votre alliance.",
+  "Bord du robot le plus proche de votre alliance : 53 cm du mur de votre alliance.",
   "Bord du robot côté droit : 0 cm du mur de droite ; côté gauche : 316 cm du mur de gauche.",
   "Orientation : l'avant du robot regarde vers votre gauche."
  ],
@@ -262,6 +262,14 @@
   },
   {
    "minute": 79,
+   "score": 47.18
+  },
+  {
+   "minute": 91.5,
+   "score": 47.18
+  },
+  {
+   "minute": 98.6,
    "score": 47.18
   }
  ]
