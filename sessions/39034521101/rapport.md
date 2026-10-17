@@ -1,22 +1,22 @@
 # Résultat de l'entraînement
 
-- Date : 2026-10-17T13:10:35.366Z (en cours)
-- Durée d'entraînement : 14.01 min · 117 essais · 15099 générations · 1505764 stratégies testées
+- Date : 2026-10-17T13:26:35.816Z (en cours)
+- Durée d'entraînement : 30.01 min · 256 essais · 32053 générations · 3200120 stratégies testées
 - **Score AUTO espéré : 47.2 pts** (LEAVE oui, PARK oui, bascules espérées 1.96 / max 2)
 - Durée du plan : 27.4 s · Fautes : aucune
 - Chances : 1+ bascule(s) 100 % · 2+ bascule(s) 96 % · 3+ bascule(s) 0 %
 
 ## Placement de départ
 - Repère : vous êtes dans votre ALLIANCE AREA et vous regardez le terrain.
-- Bord du robot le plus proche de votre alliance : 46 cm du mur de votre alliance.
+- Bord du robot le plus proche de votre alliance : 69 cm du mur de votre alliance.
 - Bord du robot côté droit : 0 cm du mur de droite ; côté gauche : 316 cm du mur de gauche.
 - Orientation : l'avant du robot regarde vers votre gauche.
 
 ## Étapes
 - 0.0 s : Lanceur ON
 - 0.0 s : Vers position de tir
-- 0.5 s : Vers position de tir
-- 0.9 s : Montée du lanceur
+- 0.4 s : Vers position de tir
+- 0.7 s : Montée du lanceur
 - 0.9 s : Tir de 3 balle(s) (garde 1)
 - 2.1 s : Vers position de tir
 - 3.0 s : Vers position de tir
