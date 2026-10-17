@@ -4,22 +4,22 @@
  "session": "39034521101",
  "debut": "2026-10-17T12:56:34.964Z",
  "minutesPrevues": 120,
- "date": "2026-10-17T13:41:36.294Z",
+ "date": "2026-10-17T13:56:36.726Z",
  "termine": false,
- "minutes": 45.02,
- "essais": 388,
- "generations": 48030,
- "strategiesTestees": 4799748,
- "score": 47.17953664711256,
- "bascules": 1.9589768323556283,
+ "minutes": 60.03,
+ "essais": 527,
+ "generations": 65354,
+ "strategiesTestees": 6528004,
+ "score": 47.179823177476756,
+ "bascules": 1.9589911588738378,
  "basculesMax": 2,
- "duree": 27.433584857124803,
+ "duree": 27.434433776989493,
  "leave": true,
  "park": true,
  "fautes": [],
  "plan": {
   "start": {
-   "x": -38.15,
+   "x": -32.15,
    "y": -62.15,
    "h": 1.5707963267948966
   },
@@ -37,32 +37,26 @@
     "n": 3
    },
    {
-    "type": "ramasse",
-    "src": "fleur1"
-   },
-   {
-    "type": "ramasse",
-    "src": "fleur1"
-   },
-   {
-    "type": "ramasse",
-    "src": "fleur0"
-   },
-   {
     "type": "tir",
-    "x": -33.27874952195212,
-    "y": 58.33639862873579,
-    "n": 3
-   },
-   {
-    "type": "tir",
-    "x": -32.97807705182582,
-    "y": 58.63929464920412,
+    "x": -49.61,
+    "y": -34.61,
     "n": 4
    },
    {
     "type": "ramasse",
-    "src": "fleur0"
+    "src": "fleur1"
+   },
+   {
+    "type": "tir",
+    "x": -33.26080462070182,
+    "y": 58.48495146698306,
+    "n": 3
+   },
+   {
+    "type": "tir",
+    "x": -32.88820316236466,
+    "y": 58.63929464920412,
+    "n": 4
    },
    {
     "type": "ramasse",
@@ -76,7 +70,7 @@
   ],
   "park": {
    "on": true,
-   "t": 0.6750462617725134
+   "t": 0.9241848320700227
   }
  },
  "robot": {
@@ -137,7 +131,7 @@
  },
  "departTexte": [
   "Repère : vous êtes dans votre ALLIANCE AREA et vous regardez le terrain.",
-  "Bord du robot le plus proche de votre alliance : 61 cm du mur de votre alliance.",
+  "Bord du robot le plus proche de votre alliance : 76 cm du mur de votre alliance.",
   "Bord du robot côté droit : 0 cm du mur de droite ; côté gauche : 316 cm du mur de gauche.",
   "Orientation : l'avant du robot regarde vers votre gauche."
  ],
@@ -224,6 +218,42 @@
   },
   {
    "minute": 43.6,
+   "score": 47.18
+  },
+  {
+   "minute": 45.5,
+   "score": 47.18
+  },
+  {
+   "minute": 45.9,
+   "score": 47.18
+  },
+  {
+   "minute": 46,
+   "score": 47.18
+  },
+  {
+   "minute": 46.5,
+   "score": 47.18
+  },
+  {
+   "minute": 47.9,
+   "score": 47.18
+  },
+  {
+   "minute": 50.9,
+   "score": 47.18
+  },
+  {
+   "minute": 52.3,
+   "score": 47.18
+  },
+  {
+   "minute": 53.3,
+   "score": 47.18
+  },
+  {
+   "minute": 56.5,
    "score": 47.18
   }
  ]

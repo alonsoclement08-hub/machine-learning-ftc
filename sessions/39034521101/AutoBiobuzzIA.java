@@ -15,7 +15,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
  * au même endroit, vu depuis votre ALLIANCE AREA).
  * Placement de départ :
  *   - Repère : vous êtes dans votre ALLIANCE AREA et vous regardez le terrain.
- *   - Bord du robot le plus proche de votre alliance : 61 cm du mur de votre alliance.
+ *   - Bord du robot le plus proche de votre alliance : 76 cm du mur de votre alliance.
  *   - Bord du robot côté droit : 0 cm du mur de droite ; côté gauche : 316 cm du mur de gauche.
  *   - Orientation : l'avant du robot regarde vers votre gauche.
  *
@@ -67,9 +67,9 @@ public class AutoBiobuzzIA extends LinearOpMode {
 
         // ----------------- Séquence trouvée par l'IA -----------------
         lanceur.setPower(PUISSANCE_TIR);   // t=0.0 s Lanceur ON
-        deplacer(0.148, -0.029);   // t=0.0 s Vers position de tir
+        deplacer(0.148, 0.123);   // t=0.0 s Vers position de tir
         tourner(-31.7);   // t=0.4 s Vers position de tir
-        attendre(168);   // t=0.7 s Montée du lanceur
+        attendre(158);   // t=0.7 s Montée du lanceur
         tirer(3);   // t=0.9 s Tir de 3 balle(s) (garde 1)
         tourner(-115.1);   // t=2.1 s Vers position de tir
         deplacer(-2.352, 1.537);   // t=3.0 s Vers position de tir
@@ -81,24 +81,24 @@ public class AutoBiobuzzIA extends LinearOpMode {
         attendre(1800);   // t=9.2 s Ramasse 4 POLLEN (FLOWER B)
         deplacer(-0.113, 0);   // t=11.0 s Recul
         intake.setPower(0);   // t=11.3 s Intake OFF
-        tourner(-121.7);   // t=11.3 s Vers position de tir
-        deplacer(-0.295, 0);   // t=12.3 s Vers position de tir
-        tourner(-31.9);   // t=12.9 s Vers position de tir
+        tourner(-122.3);   // t=11.3 s Vers position de tir
+        deplacer(-0.297, 0);   // t=12.3 s Vers position de tir
+        tourner(-31.4);   // t=12.9 s Vers position de tir
         tirer(3);   // t=13.2 s Tir de 3 balle(s) (garde 1)
         tirer(1);   // t=14.4 s Tir de 1 balle(s)
-        deplacer(1.657, -1.34);   // t=14.8 s Vers FLOWER A
-        tourner(-115.9);   // t=17.5 s Vers FLOWER A
+        deplacer(1.662, -1.34);   // t=14.8 s Vers FLOWER A
+        tourner(-115.8);   // t=17.5 s Vers FLOWER A
         intake.setPower(PUISSANCE_INTAKE);   // t=18.4 s Intake ON
         deplacer(0.113, 0);   // t=18.4 s Ramassage FLOWER A
         attendre(1800);   // t=18.7 s Ramasse 4 POLLEN (FLOWER A)
         deplacer(-0.113, 0);   // t=20.5 s Recul
-        intake.setPower(0);   // t=20.8 s Intake OFF
-        tourner(120.4);   // t=20.8 s Vers position de tir
+        intake.setPower(0);   // t=20.9 s Intake OFF
+        tourner(120.4);   // t=20.9 s Vers position de tir
         deplacer(-1.603, 1.384);   // t=21.8 s Vers position de tir
         tirer(4);   // t=24.5 s Tir de 4 balle(s)
         lanceur.setPower(0);   // t=26.1 s Lanceur OFF
         tourner(-30.4);   // t=26.1 s Vers LOADING ZONE (PARK)
-        deplacer(0.493, -0.418);   // t=26.5 s Vers LOADING ZONE (PARK)
+        deplacer(0.349, -0.418);   // t=26.5 s Vers LOADING ZONE (PARK)
         // ----------------------------------------------------------------
         toutArreter();
     }

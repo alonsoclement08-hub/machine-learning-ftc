@@ -1,14 +1,14 @@
 # Résultat de l'entraînement
 
-- Date : 2026-10-17T13:41:36.294Z (en cours)
-- Durée d'entraînement : 45.02 min · 388 essais · 48030 générations · 4799748 stratégies testées
+- Date : 2026-10-17T13:56:36.726Z (en cours)
+- Durée d'entraînement : 60.03 min · 527 essais · 65354 générations · 6528004 stratégies testées
 - **Score AUTO espéré : 47.2 pts** (LEAVE oui, PARK oui, bascules espérées 1.96 / max 2)
 - Durée du plan : 27.4 s · Fautes : aucune
 - Chances : 1+ bascule(s) 100 % · 2+ bascule(s) 96 % · 3+ bascule(s) 0 %
 
 ## Placement de départ
 - Repère : vous êtes dans votre ALLIANCE AREA et vous regardez le terrain.
-- Bord du robot le plus proche de votre alliance : 61 cm du mur de votre alliance.
+- Bord du robot le plus proche de votre alliance : 76 cm du mur de votre alliance.
 - Bord du robot côté droit : 0 cm du mur de droite ; côté gauche : 316 cm du mur de gauche.
 - Orientation : l'avant du robot regarde vers votre gauche.
 
@@ -39,8 +39,8 @@
 - 18.4 s : Ramassage FLOWER A
 - 18.7 s : Ramasse 4 POLLEN (FLOWER A)
 - 20.5 s : Recul
-- 20.8 s : Intake OFF
-- 20.8 s : Vers position de tir
+- 20.9 s : Intake OFF
+- 20.9 s : Vers position de tir
 - 21.8 s : Vers position de tir
 - 24.5 s : Tir de 4 balle(s)
 - 26.1 s : Lanceur OFF
