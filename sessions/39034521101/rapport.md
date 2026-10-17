@@ -1,7 +1,7 @@
 # Résultat de l'entraînement
 
-- Date : 2026-10-17T13:56:36.726Z (en cours)
-- Durée d'entraînement : 60.03 min · 527 essais · 65354 générations · 6528004 stratégies testées
+- Date : 2026-10-17T14:11:37.135Z (en cours)
+- Durée d'entraînement : 75.04 min · 672 essais · 82945 générations · 8285184 stratégies testées
 - **Score AUTO espéré : 47.2 pts** (LEAVE oui, PARK oui, bascules espérées 1.96 / max 2)
 - Durée du plan : 27.4 s · Fautes : aucune
 - Chances : 1+ bascule(s) 100 % · 2+ bascule(s) 96 % · 3+ bascule(s) 0 %
@@ -39,8 +39,8 @@
 - 18.4 s : Ramassage FLOWER A
 - 18.7 s : Ramasse 4 POLLEN (FLOWER A)
 - 20.5 s : Recul
-- 20.9 s : Intake OFF
-- 20.9 s : Vers position de tir
+- 20.8 s : Intake OFF
+- 20.8 s : Vers position de tir
 - 21.8 s : Vers position de tir
 - 24.5 s : Tir de 4 balle(s)
 - 26.1 s : Lanceur OFF

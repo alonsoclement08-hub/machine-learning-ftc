@@ -92,8 +92,8 @@ public class AutoBiobuzzIA extends LinearOpMode {
         deplacer(0.113, 0);   // t=18.4 s Ramassage FLOWER A
         attendre(1800);   // t=18.7 s Ramasse 4 POLLEN (FLOWER A)
         deplacer(-0.113, 0);   // t=20.5 s Recul
-        intake.setPower(0);   // t=20.9 s Intake OFF
-        tourner(120.4);   // t=20.9 s Vers position de tir
+        intake.setPower(0);   // t=20.8 s Intake OFF
+        tourner(120.4);   // t=20.8 s Vers position de tir
         deplacer(-1.603, 1.384);   // t=21.8 s Vers position de tir
         tirer(4);   // t=24.5 s Tir de 4 balle(s)
         lanceur.setPower(0);   // t=26.1 s Lanceur OFF

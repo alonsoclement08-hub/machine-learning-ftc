@@ -4,16 +4,16 @@
  "session": "39034521101",
  "debut": "2026-10-17T12:56:34.964Z",
  "minutesPrevues": 120,
- "date": "2026-10-17T13:56:36.726Z",
+ "date": "2026-10-17T14:11:37.135Z",
  "termine": false,
- "minutes": 60.03,
- "essais": 527,
- "generations": 65354,
- "strategiesTestees": 6528004,
+ "minutes": 75.04,
+ "essais": 672,
+ "generations": 82945,
+ "strategiesTestees": 8285184,
  "score": 47.179823177476756,
  "bascules": 1.9589911588738378,
  "basculesMax": 2,
- "duree": 27.434433776989493,
+ "duree": 27.434389085044327,
  "leave": true,
  "park": true,
  "fautes": [],
@@ -54,7 +54,7 @@
    },
    {
     "type": "tir",
-    "x": -32.88820316236466,
+    "x": -32.887546607889234,
     "y": 58.63929464920412,
     "n": 4
    },
@@ -254,6 +254,10 @@
   },
   {
    "minute": 56.5,
+   "score": 47.18
+  },
+  {
+   "minute": 72.3,
    "score": 47.18
   }
  ]
