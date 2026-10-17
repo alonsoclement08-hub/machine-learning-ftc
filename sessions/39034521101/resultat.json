@@ -1,0 +1,206 @@
+{
+ "version": 2,
+ "nom": "teste",
+ "session": "39034521101",
+ "debut": "2026-10-17T12:56:34.964Z",
+ "minutesPrevues": 120,
+ "date": "2026-10-17T13:10:35.366Z",
+ "termine": false,
+ "minutes": 14.01,
+ "essais": 117,
+ "generations": 15099,
+ "strategiesTestees": 1505764,
+ "score": 47.17953770578839,
+ "bascules": 1.9589768852894194,
+ "basculesMax": 2,
+ "duree": 27.433859394163385,
+ "leave": true,
+ "park": true,
+ "fautes": [],
+ "plan": {
+  "start": {
+   "x": -44.15,
+   "y": -62.15,
+   "h": 1.5707963267948966
+  },
+  "actions": [
+   {
+    "type": "tir",
+    "x": -37.006132353227585,
+    "y": -56.3396192469726,
+    "n": 3
+   },
+   {
+    "type": "tir",
+    "x": -37.198318856898695,
+    "y": 54.284486765377224,
+    "n": 3
+   },
+   {
+    "type": "ramasse",
+    "src": "fleur1"
+   },
+   {
+    "type": "ramasse",
+    "src": "fleur0"
+   },
+   {
+    "type": "tir",
+    "x": -33.27874952195212,
+    "y": 58.33639862873579,
+    "n": 3
+   },
+   {
+    "type": "tir",
+    "x": -32.98185362400487,
+    "y": 58.63929464920412,
+    "n": 4
+   },
+   {
+    "type": "ramasse",
+    "src": "fleur0"
+   },
+   {
+    "type": "tir",
+    "x": -37.19694716496393,
+    "y": 58.63929464920412
+   }
+  ],
+  "park": {
+   "on": true,
+   "t": 0.6426754691638051
+  }
+ },
+ "robot": {
+  "nom": "Robot test (par défaut)",
+  "chassis": "mecanum",
+  "longueur_cm": 43,
+  "largeur_cm": 43,
+  "hauteur_cm": 40,
+  "msParMetre": 1500,
+  "msPour180": 1200,
+  "puissanceTir": 0.85,
+  "puissanceRoues": 0.5,
+  "puissanceRotation": 0.5,
+  "facteurCrabe": 0.8,
+  "pauseMs": 150,
+  "lanceur": {
+   "sens": "avant",
+   "distMin_cm": 60,
+   "distMax_cm": 260,
+   "distIdeale_cm": 150,
+   "precision": 0.85,
+   "monteeMs": 900,
+   "msParBalle": 400
+  },
+  "intake": {
+   "sens": "avant",
+   "msParBalle": 450,
+   "approche_cm": 10,
+   "puissance": 1,
+   "sol": true,
+   "fleur": true
+  },
+  "moteurs": {
+   "avantGauche": "frontLeft",
+   "avantDroit": "frontRight",
+   "arriereGauche": "backLeft",
+   "arriereDroit": "backRight",
+   "gauche": "leftDrive",
+   "droit": "rightDrive",
+   "lanceur": "launcher",
+   "intake": "intake",
+   "alimentation": ""
+  },
+  "inverserGauche": true
+ },
+ "game": {
+  "alliance": "red",
+  "dureeAuto": 30,
+  "margeSecurite": 1,
+  "seuilBascule": 6,
+  "poidsNectar": 1.67,
+  "v": 3,
+  "nectarDepart": 3,
+  "prechargees": 4,
+  "zonePartenaire": null,
+  "departImpose": null,
+  "viserPark": true
+ },
+ "departTexte": [
+  "Repère : vous êtes dans votre ALLIANCE AREA et vous regardez le terrain.",
+  "Bord du robot le plus proche de votre alliance : 46 cm du mur de votre alliance.",
+  "Bord du robot côté droit : 0 cm du mur de droite ; côté gauche : 316 cm du mur de gauche.",
+  "Orientation : l'avant du robot regarde vers votre gauche."
+ ],
+ "historique": [
+  {
+   "minute": 0.3,
+   "score": 47.18
+  },
+  {
+   "minute": 0.5,
+   "score": 47.18
+  },
+  {
+   "minute": 0.7,
+   "score": 47.18
+  },
+  {
+   "minute": 0.9,
+   "score": 47.18
+  },
+  {
+   "minute": 1.6,
+   "score": 47.18
+  },
+  {
+   "minute": 1.8,
+   "score": 47.18
+  },
+  {
+   "minute": 2.6,
+   "score": 47.18
+  },
+  {
+   "minute": 3.3,
+   "score": 47.18
+  },
+  {
+   "minute": 3.8,
+   "score": 47.18
+  },
+  {
+   "minute": 4.2,
+   "score": 47.18
+  },
+  {
+   "minute": 4.5,
+   "score": 47.18
+  },
+  {
+   "minute": 7.6,
+   "score": 47.18
+  },
+  {
+   "minute": 8.7,
+   "score": 47.18
+  },
+  {
+   "minute": 9.3,
+   "score": 47.18
+  },
+  {
+   "minute": 10,
+   "score": 47.18
+  },
+  {
+   "minute": 10.5,
+   "score": 47.18
+  },
+  {
+   "minute": 11.7,
+   "score": 47.18
+  }
+ ]
+}
