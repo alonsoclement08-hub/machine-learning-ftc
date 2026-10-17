@@ -1,7 +1,7 @@
 # Résultat de l'entraînement
 
-- Date : 2026-10-17T14:41:37.991Z (en cours)
-- Durée d'entraînement : 105.05 min · 962 essais · 117948 générations · 11795344 stratégies testées
+- Date : 2026-10-17T14:56:34.969Z
+- Durée d'entraînement : 120 min · 1106 essais · 135384 générations · 13542824 stratégies testées
 - **Score AUTO espéré : 47.2 pts** (LEAVE oui, PARK oui, bascules espérées 1.96 / max 2)
 - Durée du plan : 27.4 s · Fautes : aucune
 - Chances : 1+ bascule(s) 100 % · 2+ bascule(s) 96 % · 3+ bascule(s) 0 %
