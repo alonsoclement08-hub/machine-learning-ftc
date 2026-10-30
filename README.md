@@ -70,7 +70,17 @@ préchargées → FLOWER 1 → FLOWER 2 → GARDEN → PARK.
 
 ### Page 2 : Chat IA
 
-Discussion avec Claude, qui peut proposer des changements du plan et des réglages.
+Discussion avec **Claude** (API Anthropic) sur votre AUTO : « pourquoi je ne fais pas 2 bascules ? »,
+« rends mon trajet plus rapide »… Claude voit les réglages, le plan dessiné et son résultat simulé,
+il **essaie des variantes avec le simulateur**, puis propose :
+- un **plan** : carte avec le score avant / après, « Voir sur le terrain » et « Appliquer » ;
+- des **réglages** de la page 1 : carte avant → après, « Appliquer » puis « Annuler » si besoin.
+
+Rien ne change sans votre clic. Il faut une **clé API Anthropic** (payante à l'usage, quelques
+centimes par question), créée sur [console.anthropic.com](https://console.anthropic.com/settings/keys) :
+elle reste dans votre navigateur et part directement chez Anthropic. Modèles au choix : Claude
+Opus 5.5 (par défaut), Sonnet 5.5, Haiku 5.5 (le moins cher). Le chat a besoin d'Internet ; tout le
+reste de l'appli marche hors ligne.
 
 ### Page 3 : Optimiser, code, sessions
 

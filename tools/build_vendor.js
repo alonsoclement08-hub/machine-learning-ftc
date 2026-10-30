@@ -28,3 +28,12 @@ fs.writeFileSync(path.join(V, 'occt-import-js.wasm.js'),
 fs.copyFileSync(path.join(occtDir, 'license.occt-import-js.txt'), path.join(V, 'LICENSE.occt-import-js.txt'));
 fs.copyFileSync(path.join(occtDir, 'license.occt.txt'), path.join(V, 'LICENSE.occt.txt'));
 for (const f of fs.readdirSync(V)) console.log(f, (fs.statSync(path.join(V, f)).size / 1e6).toFixed(2) + ' Mo');
+
+// SDK Anthropic (chat IA) : un seul fichier pour le navigateur, variable globale `Anthropic`.
+require('esbuild').buildSync({
+  entryPoints: [path.join(__dirname, 'anthropic_entry.js')],
+  bundle: true, format: 'iife', platform: 'browser', target: 'es2020', minify: true, legalComments: 'eof',
+  outfile: path.join(V, 'anthropic-sdk.js'),
+});
+fs.copyFileSync(path.join(NM, '@anthropic-ai/sdk/LICENSE'), path.join(V, 'LICENSE.anthropic-sdk.txt'));
+console.log('anthropic-sdk.js', (fs.statSync(path.join(V, 'anthropic-sdk.js')).size / 1e6).toFixed(2) + ' Mo');

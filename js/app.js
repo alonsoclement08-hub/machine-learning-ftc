@@ -1013,6 +1013,133 @@
   });
   if (ghSettings && ghSettings.token) ghConnect(true);
 
+  // ---------------- Chat IA (page 2) ----------------
+  const CHAT_KEY = 'biobuzz-claude-v1';
+  let chatCfg = { key: '', model: 'claude-opus-5-5' };
+  try { chatCfg = Object.assign(chatCfg, JSON.parse(localStorage.getItem(CHAT_KEY) || '{}')); } catch (e) { /* rien */ }
+  $('chatModel').innerHTML = BZ.CHAT_MODELS.map((m) => `<option value="${m.id}">${esc(m.nom)}</option>`).join('');
+  $('chatModel').value = chatCfg.model;
+  $('chatKey').value = chatCfg.key;
+  const chatSetupLabel = () => { $('chatSetupSum').textContent = chatCfg.key ? `Clé API enregistrée · ${(BZ.CHAT_MODELS.find((m) => m.id === chatCfg.model) || {}).nom || chatCfg.model}` : 'Clé API Anthropic (à configurer)'; };
+  chatSetupLabel();
+  if (!chatCfg.key) $('chatSetup').open = true;
+  const saveChat = () => { try { localStorage.setItem(CHAT_KEY, JSON.stringify(chatCfg)); } catch (e) { /* rien */ } chatSetupLabel(); };
+  $('chatSaveKey').addEventListener('click', () => { chatCfg.key = $('chatKey').value.trim(); chatCfg.model = $('chatModel').value; saveChat(); $('chatSetup').open = false; });
+  $('chatModel').addEventListener('change', () => { chatCfg.model = $('chatModel').value; saveChat(); });
+  $('chatForget').addEventListener('click', () => { chatCfg.key = ''; $('chatKey').value = ''; saveChat(); try { localStorage.removeItem(CHAT_KEY); } catch (e) { /* rien */ } });
+
+  const settingTarget = (chemin) => (chemin.startsWith('robot.') ? [robot, chemin.slice(6)] : [game, chemin.slice(6)]);
+  const readSetting = (chemin) => { const [o, p] = settingTarget(chemin); return clone(getPath(o, p)); };
+  const writeSetting = (chemin, v) => { const [o, p] = settingTarget(chemin); setPath(o, p, clone(v)); };
+  function settingsNow() {
+    const out = {};
+    for (const k of Object.keys(BZ.CHAT_SETTINGS)) out[k] = readSetting(k);
+    out['robot.longueur_cm'] = robot.longueur_cm; out['robot.largeur_cm'] = robot.largeur_cm; out['robot.hauteur_cm'] = robot.hauteur_cm;
+    return out;
+  }
+  function applySettings(list) {
+    for (const c of list) writeSetting(c.chemin, c.valeur);
+    fillForm($('robotForm'), robot); fillForm($('gameForm'), game);
+    markOdo(); persist(); showRobotWarnings(); invalidate();
+  }
+
+  const chatLog = $('chatLog');
+  const chatScroll = () => { chatLog.scrollTop = chatLog.scrollHeight; };
+  function chatMsg(cls, html) {
+    const d = document.createElement('div');
+    d.className = 'msg ' + cls;
+    d.innerHTML = html;
+    chatLog.appendChild(d); chatScroll();
+    return d;
+  }
+  const mdLite = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<span class="mono">$1</span>');
+  function chatCard(html) {
+    const d = document.createElement('div');
+    d.className = 'propose';
+    d.innerHTML = html;
+    chatLog.appendChild(d); chatScroll();
+    return d;
+  }
+
+  const assistant = new BZ.Assistant({
+    world: worldNow,
+    robot: () => robot,
+    plan: () => myPlan,
+    simulate: (plan) => simulate(plan),
+    settings: () => ({ reglages: settingsNow(), modifiables: Object.keys(BZ.CHAT_SETTINGS) }),
+    context: () => ({
+      reglages: settingsNow(),
+      zones: (game.zones || []).map((z) => ({ id: z.id, type: z.kind, x0: Math.round(Math.min(z.x0, z.x1)), x1: Math.round(Math.max(z.x0, z.x1)), y0: Math.round(Math.min(z.y0, z.y1)), y1: Math.round(Math.max(z.y0, z.y1)) })),
+      plan_actuel: BZ.planToTool(myPlan),
+      resultat_du_plan: BZ.resultSummary(simulate(myPlan)),
+    }),
+    proposePlan(plan, why, r) {
+      const cur = simulate(myPlan);
+      const card = chatCard(`<h4>📋 Plan proposé : ${r.expected.toFixed(1)} pts · ${r.endT.toFixed(1)} s</h4>` +
+        `<div class="hint">Votre plan : ${cur ? cur.expected.toFixed(1) + ' pts · ' + cur.endT.toFixed(1) + ' s' : '–'} · 2 bascules : ${Math.round(r.tipsAtLeast[2] * 100)} % · fautes : ${r.faults.length ? r.faults.map((f) => f.rule).join(', ') : 'aucune'}</div>` +
+        `<div>${mdLite(why)}</div><div class="row"><button class="btn" data-a="see" type="button">Voir sur le terrain</button><button class="btn primary" data-a="apply" type="button">Appliquer</button><button class="btn ghost" data-a="skip" type="button">Ignorer</button></div>`);
+      card.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-a]');
+        if (!b) return;
+        if (b.dataset.a === 'see') { stopTraining(); aiPreview = { result: r, plan: clone(plan) }; resim(); pushState(); return; }
+        if (b.dataset.a === 'apply') { stopTraining(); aiPreview = { result: r, plan: clone(plan) }; keepAi(); card.querySelector('.row').innerHTML = '<span class="ok">✓ Appliqué (↶ pour annuler)</span>'; }
+        else card.querySelector('.row').innerHTML = '<span class="hint">Ignoré</span>';
+        card.classList.add('done');
+      });
+    },
+    proposeSettings(list, why) {
+      const before = list.map((c) => ({ chemin: c.chemin, valeur: readSetting(c.chemin) }));
+      const fmt = (v) => esc(Array.isArray(v) ? v.join(' / ') : String(v));
+      const card = chatCard(`<h4>⚙️ Réglages proposés</h4><div>${mdLite(why)}</div><table>${list.map((c, i) => `<tr><td class="mono">${esc(c.chemin)}</td><td>${fmt(before[i].valeur)}</td><td>→</td><td><b>${fmt(c.valeur)}</b></td></tr>`).join('')}</table>` +
+        '<div class="row"><button class="btn primary" data-a="apply" type="button">Appliquer</button><button class="btn ghost" data-a="skip" type="button">Ignorer</button></div>');
+      card.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-a]');
+        if (!b) return;
+        const row = card.querySelector('.row');
+        if (b.dataset.a === 'apply') { applySettings(list); row.innerHTML = '<span class="ok">✓ Appliqué</span> <button class="btn" data-a="undo" type="button">Annuler</button>'; }
+        else if (b.dataset.a === 'undo') { applySettings(before); row.innerHTML = '<span class="hint">Annulé</span>'; card.classList.add('done'); }
+        else { row.innerHTML = '<span class="hint">Ignoré</span>'; card.classList.add('done'); }
+      });
+    },
+  });
+
+  const TOOL_TXT = { simuler_plan: '🔧 essaie une variante', proposer_plan: '📋 propose un plan', lire_reglages: '🔎 lit les réglages', modifier_reglages: '⚙️ propose des réglages' };
+  async function chatSend(text) {
+    text = (text || '').trim();
+    if (!text) return;
+    if (assistant.busy) return;
+    if (!chatCfg.key) { $('chatSetup').open = true; $('chatKey').focus(); chatMsg('err', 'Collez d\'abord votre clé API Anthropic ci-dessus.'); return; }
+    chatMsg('me', esc(text));
+    $('chatInput').value = '';
+    $('chatSend').textContent = 'Stop';
+    $('chatSugg').hidden = true;
+    let bubble = null, buf = '';
+    await assistant.send(text, chatCfg.key, chatCfg.model, {
+      onTurnStart() { bubble = null; buf = ''; },
+      onText(d) {
+        if (!bubble) bubble = chatMsg('ai typing', '');
+        buf += d; bubble.textContent = buf; chatScroll();
+      },
+      onTool(name, input, res) {
+        if (bubble) { bubble.classList.remove('typing'); bubble.innerHTML = mdLite(buf); bubble = null; buf = ''; }
+        let extra = '';
+        if (name === 'simuler_plan' && !res.is_error) { try { const r = JSON.parse(res.content); extra = ` → ${r.score_espere} pts, ${r.duree_s} s`; } catch (e) { /* rien */ } }
+        chatMsg('tool', esc((TOOL_TXT[name] || name) + extra + (res.is_error ? ' (erreur : ' + res.content.replace(/^Erreur : /, '') + ')' : '')));
+      },
+      onDone() { if (bubble) { bubble.classList.remove('typing'); bubble.innerHTML = mdLite(buf); } },
+      onError(msg) { if (bubble) { bubble.classList.remove('typing'); } chatMsg('err', esc(msg)); },
+    });
+    $('chatSend').textContent = 'Envoyer';
+  }
+  $('chatForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (assistant.busy) { if (assistant.abort) assistant.abort(); return; }
+    chatSend($('chatInput').value);
+  });
+  $('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('chatForm').requestSubmit(); } });
+  $('chatSugg').addEventListener('click', (e) => { const b = e.target.closest('.chip2'); if (b) chatSend(b.textContent); });
+  $('chatNew').addEventListener('click', () => { if (assistant.busy) return; assistant.reset(); chatLog.innerHTML = ''; $('chatSugg').hidden = false; });
+
   // ---------------- Démarrage ----------------
   const ua = navigator.userAgent || '';
   if (/Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS/.test(ua)) $('safariNote').hidden = false;
@@ -1043,6 +1170,7 @@
     get aiPreview() { return aiPreview; },
     keepAi,
     setTool,
+    assistant: () => assistant,
     goPage,
     train: startTraining,
     stop: stopTraining,

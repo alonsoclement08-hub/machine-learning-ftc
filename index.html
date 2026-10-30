@@ -81,7 +81,7 @@
 
   <!-- ===================== BARRE DE DROITE : 3 PAGES ===================== -->
   <aside class="side">
-    <div class="brandline"><span aria-hidden="true">🐝</span> <b>BIOBUZZ Auto IA</b> <span class="mono" id="appVersion">v12 · 30/10</span></div>
+    <div class="brandline"><span aria-hidden="true">🐝</span> <b>BIOBUZZ Auto IA</b> <span class="mono" id="appVersion">v13 · 30/10</span></div>
     <div class="pager-head">
       <button class="btn icon ghost" id="pagePrev" type="button" aria-label="Page précédente">‹</button>
       <div class="pager-dots" role="tablist">
@@ -244,9 +244,26 @@
 
       <!-- PAGE 2 : CHAT IA -->
       <section class="page" id="page-chat" aria-label="Assistant IA">
-        <div class="card" id="chatCard">
-          <h2>Assistant IA</h2>
-          <p class="hint">Bientôt : discutez avec Claude, il peut modifier votre plan et les réglages du robot.</p>
+        <div class="card chatcard" id="chatCard">
+          <div class="row between"><h2>Assistant IA</h2><button class="btn ghost" id="chatNew" type="button" title="Nouvelle discussion">＋ Nouvelle</button></div>
+          <details id="chatSetup">
+            <summary id="chatSetupSum">Clé API Anthropic</summary>
+            <p class="hint">Le chat utilise l'API Claude d'Anthropic : il faut une <b>clé API</b> (payante à l'usage, quelques centimes par question). Créez-la sur <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. Elle reste dans ce navigateur et part directement chez Anthropic. Ne la partagez pas.</p>
+            <label>Clé API <input id="chatKey" type="password" placeholder="sk-ant-…" autocomplete="off"></label>
+            <label>Modèle <select id="chatModel"></select></label>
+            <div class="row"><button class="btn primary" id="chatSaveKey" type="button">Enregistrer</button><button class="btn ghost" id="chatForget" type="button">Oublier la clé</button></div>
+          </details>
+          <div id="chatLog" class="chatlog" aria-live="polite"></div>
+          <div class="chat-sugg" id="chatSugg">
+            <button class="chip2" type="button">Pourquoi je ne fais pas 2 bascules ?</button>
+            <button class="chip2" type="button">Rends mon trajet plus rapide</button>
+            <button class="chip2" type="button">Que dois-je mesurer sur mon robot ?</button>
+            <button class="chip2" type="button">Propose un meilleur plan</button>
+          </div>
+          <form id="chatForm" class="chatform">
+            <textarea id="chatInput" rows="2" placeholder="Posez une question sur votre AUTO…"></textarea>
+            <button class="btn primary" id="chatSend" type="submit">Envoyer</button>
+          </form>
         </div>
       </section>
 
@@ -373,6 +390,8 @@
 <script src="js/render2d.js"></script>
 <script src="js/render3d.js"></script>
 <script src="js/plan_editor.js"></script>
+<script src="vendor/anthropic-sdk.js"></script>
+<script src="js/assistant.js"></script>
 <script src="js/robot_import.js"></script>
 <script src="js/robot_preview.js"></script>
 <script src="js/cloud.js"></script>
