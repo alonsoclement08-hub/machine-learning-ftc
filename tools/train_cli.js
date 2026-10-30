@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
-for (const f of ['geometry', 'robot', 'rules', 'planner', 'sim', 'hive_scene', 'optimizer', 'export_java', 'export_blockly']) {
+for (const f of ['geometry', 'robot', 'rules', 'planner', 'sim', 'hive_scene', 'optimizer', 'export_java', 'export_blockly', 'export_pedro']) {
   require(path.join(ROOT, 'js', f + '.js'));
 }
 const BZ = globalThis.BZ;
@@ -64,6 +64,7 @@ function save(final) {
   fs.writeFileSync(path.join(OUT, 'resultat.json'), JSON.stringify(summary, null, 1));
   fs.writeFileSync(path.join(OUT, 'AutoBiobuzzIA.java'), BZ.exportJava(best, robot, { startText }));
   fs.writeFileSync(path.join(OUT, 'AutoBiobuzzIA.blk'), BZ.exportBlockly(best, robot, { startText }));
+  if (robot.deplacement === 'odometrie') fs.writeFileSync(path.join(OUT, 'AutoBiobuzzIAPedro.java'), BZ.exportPedro(best, robot, { startText }));
   if (LEGACY) {
     fs.writeFileSync(path.join(ROOT, 'data', 'cloud_result.js'),
       '// Résultat du dernier entraînement dans le cloud (généré par tools/train_cli.js).\n' +

@@ -25,6 +25,8 @@
     this.zones = {};
     for (const z of game.zones || []) this.zones[z.id] = BZ.zoneRect(z);
     this.sources = ['jardin'].concat(this.world.flowers.map((f) => f.id));
+    this.canNectar = !!(robot.intake && robot.intake.nectar && game.nectarHumain);
+    if (this.canNectar) this.sources.push('nectar');
     this.shootSpots = this.computeShootSpots();
     this.bestSpots = this.rankSpots();
     this.generation = 0;
@@ -164,8 +166,7 @@
   // Plan "réfléchi" : tire juste ce qu'il faut pour faire basculer, change de côté de la HIVE
   // après chaque bascule (l'ouverture de la CELL change de côté), ramasse entre deux tirs.
   Optimizer.prototype.smartPlan = function () {
-    const seuil = this.game.seuilBascule;
-    let fill = this.world.startFill, state = 0, held = Math.min(4, this.game.prechargees);
+    let fill = 0, cellN = this.world.startNectar, state = 0, held = Math.min(4, this.game.prechargees);
     const avail = { jardin: this.world.garden.balls.length };
     for (const f of this.world.flowers) avail[f.id] = f.pollen;
     const order = this.sources.slice().sort(() => this.rand() - 0.5);
@@ -173,13 +174,13 @@
     let srcI = 0;
     while (actions.length < this.maxActions - 1) {
       if (held > 0) {
-        const need = Math.max(1, Math.ceil(seuil - fill - 1e-6));
+        const need = Math.max(1, BZ.tipNeed(this.game, cellN) - fill);
         // soit juste ce qu'il faut (+1 de marge si possible), soit tout
         let n = this.rand() < 0.6 ? Math.min(held, need + (this.rand() < 0.5 ? 1 : 0)) : held;
         n = Math.max(1, n);
         actions.push(Object.assign(this.randomShot(state), { n: n === held ? undefined : n }));
         held -= n; fill += n;
-        if (BZ.tipsAt(fill, this.game)) { fill = 0; state ^= 1; }
+        if (BZ.cellTips(this.game, cellN, fill)) { fill = 0; cellN = 0; state ^= 1; }
       } else {
         let k = 0;
         while (k < order.length && !(avail[order[(srcI + k) % order.length]] > 0)) k++;
@@ -223,7 +224,7 @@
     const order = flowers.concat(['jardin']);
     const pose = (src) => BZ.pickupPose(world, src);
     const parkP = BZ.parkPose(world, 0.5, 0);
-    let fill = world.startFill, state = 0, held = Math.min(4, game.prechargees);
+    let fill = 0, cellN = world.startNectar, state = 0, held = Math.min(4, game.prechargees);
     const actions = [];
     // départ : au plus près du premier point de tir (ou au hasard, pour varier)
     const firstSpot = this.spotBetween(0, null, pose(order[0]));
@@ -248,11 +249,13 @@
       actions.push({ type: 'tir', x: s.x, y: s.y, n: n === held ? undefined : n });
       here = s;
       held -= n; fill += n;
-      if (BZ.tipsAt(fill, game)) { fill = 0; state ^= 1; }
+      if (BZ.cellTips(game, cellN, fill)) { fill = 0; cellN = 0; state ^= 1; }
     };
-    const need = Math.max(1, Math.ceil(game.seuilBascule - fill - 1e-6));
+    const need = Math.max(1, BZ.tipNeed(game, cellN) - fill);
     // juste ce qu'il faut pour la 1re bascule, ou une balle de plus en cas de raté
     shoot(pose(order[0]), this.rand() < 0.5 ? need : need + 1);
+    // le joueur humain pose un NECTAR après la bascule : si l'intake peut le prendre, il allège la suivante
+    if (this.canNectar && this.rand() < 0.5) { actions.push({ type: 'ramasse', src: 'nectar' }); held = Math.min(4, held + 1); }
     for (let i = 0; i < order.length; i++) {
       const p = pose(order[i]);
       if (!p) continue;

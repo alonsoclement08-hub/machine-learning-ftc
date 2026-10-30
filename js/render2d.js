@@ -83,8 +83,10 @@
     for (const f of world.flowers) out.avail[f.id] = f.pollen;
     if (!result) return out;
     out.pose = BZ.poseAt(result.prims, result.plan.start, t);
+    out.nectarZone = 0;
     for (const e of result.events) {
-      if (e.type === 'pickup' && e.t <= t) { out.avail[e.src] -= e.n; out.held += e.n; }
+      if (e.type === 'pickup' && e.t <= t) { if (e.src === 'nectar') out.nectarZone--; else out.avail[e.src] -= e.n; out.held += e.n; }
+      if (e.type === 'nectarDrop' && e.t <= t) out.nectarZone++;
     }
     for (const s of result.shots) if (s.t <= t) out.held -= 1;
     return out;
@@ -184,7 +186,7 @@
           ctx.closePath(); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
           if (col === alliance) {
             ctx.fillStyle = '#fff'; ctx.font = `700 ${Math.round(s * 3.2)}px system-ui`;
-            ctx.fillText(`${String(hs.weight !== undefined ? hs.weight : hs.fill).replace('.', ',')}/${st.game ? st.game.seuilBascule : 8}`, ...P(o.x, o.y / 2 - 1.2));
+            ctx.fillText(`${hs.pollen}/${hs.need}`, ...P(o.x, o.y / 2 - 1.2));
           }
         }
       });
@@ -241,6 +243,14 @@
     const sp = st.overlay && st.overlay.startPreview;
     if (sp) this.drawRobot(sp.pose, 0.85, alliance, sp.errs.length ? '#ff6a00' : null);
 
+    // NECTAR posés par le joueur humain dans notre LOADING ZONE
+    if (rs && rs.nectarZone > 0 && st.world) {
+      const z = st.world.loading;
+      for (let i = 0; i < rs.nectarZone; i++) {
+        const [x, y] = this.abs((z.x0 + z.x1) / 2, (z.y0 + z.y1) / 2 + (i - (rs.nectarZone - 1) / 2) * 4);
+        ball(x, y, 1.8, alliance === 'red' ? COL.red : COL.blue, '#111');
+      }
+    }
     // Balles de la HIVE (dans les CELLS, en vol, au sol), de la plus basse à la plus haute
     const kinds = { pollen: [COL.pollen, COL.pollenEdge], 'nectar-red': [COL.red, '#7a1020'], 'nectar-blue': [COL.blue, '#0d3f7a'] };
     hs.balls.slice().sort((a, b) => a.z - b.z).forEach((b) => {

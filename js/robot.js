@@ -23,6 +23,13 @@
       facteurCrabe: 0.8, // vitesse en crabe / vitesse en avant (mecanum)
       pauseMs: 150, // pause d'arrêt après chaque mouvement
 
+      // --- Déplacement : 'chrono' (temps en ms, sans capteur) ou 'odometrie' (Pedro Pathing) ---
+      deplacement: 'chrono',
+      odo: {
+        vMax_cm_s: 150, // vitesse max en ligne droite (mesurée avec les outils de réglage Pedro)
+        accel_cm_s2: 250, // accélération / freinage
+      },
+
       lanceur: {
         sens: 'avant', // 'avant' ou 'arriere' : côté du robot par lequel il tire
         distMin_cm: 60, // distance horizontale min jusqu'à la CELL
@@ -39,6 +46,7 @@
         puissance: 1.0,
         sol: true, // peut ramasser les balles posées au sol (GARDEN)
         fleur: true, // peut sortir le POLLEN par le bas d'une FLOWER
+        nectar: false, // peut ramasser un NECTAR (posé par le joueur humain dans la LOADING ZONE)
       },
       moteurs: {
         avantGauche: 'frontLeft',
@@ -60,9 +68,14 @@
       alliance: 'red',
       dureeAuto: 30,
       margeSecurite: 1.0, // secondes gardées en réserve à la fin de l'AUTO
-      seuilBascule: 8, // poids à atteindre dans la CELL du haut pour la faire basculer (8 POLLEN)
-      poidsNectar: 1.67, // un NECTAR pèse autant que ~1,67 POLLEN : 3 NECTAR + 3 POLLEN = 8
-      v: 3,
+      seuilBascule: 8, // (ancien réglage, remplacé par tableBascule) poids qui fait basculer
+      poidsNectar: 1.67, // (ancien réglage) un NECTAR pèse autant que ~1,67 POLLEN
+      // POLLEN qui font basculer une CELL selon le nombre de NECTAR dedans (0, 1, 2, 3, 4, 5+)
+      tableBascule: [8, 7, 6, 3, 1, 0],
+      nectarHumain: true, // le joueur humain pose 1 NECTAR dans la LOADING ZONE à chaque bascule (G426.A)
+      delaiHumain_s: 2, // temps pour que le NECTAR arrive sur le tapis après la bascule
+      nectarReserve: 5, // NECTAR du joueur humain
+      v: 4,
       nectarDepart: 3, // NECTAR déjà dans la CELL du haut au départ (manuel TU04 : 3)
       prechargees: 4,
       zonePartenaire: null, // (ancien) {x0,y0,x1,y1} en pouces (repère rouge) que l'IA doit éviter
@@ -76,7 +89,7 @@
   BZ.robotDerived = function (r) {
     const IN = 1 / 2.54;
     const hl = (r.longueur_cm * IN) / 2, hw = (r.largeur_cm * IN) / 2;
-    return {
+    const d = {
       hl, hw,
       radius: Math.hypot(hl, hw),
       vAvant: 39.3701 / (r.msParMetre / 1000), // pouces / s
@@ -89,7 +102,13 @@
       tirSens: r.lanceur.sens === 'arriere' ? Math.PI : 0,
       intakeSens: r.intake.sens === 'arriere' ? Math.PI : 0,
       approche: r.intake.approche_cm * IN,
+      odo: r.deplacement === 'odometrie',
+      vOdo: ((r.odo && r.odo.vMax_cm_s) || 150) * IN,
+      aOdo: ((r.odo && r.odo.accel_cm_s2) || 250) * IN,
     };
+    // odométrie : le robot roule à la vitesse réglée pour Pedro (et non plus selon MS_PAR_METRE)
+    if (d.odo) { d.vAvant = d.vOdo; d.vCrabe = d.vOdo * r.facteurCrabe; }
+    return d;
   };
 
   // Vérifie les dimensions par rapport au règlement (R102 : départ dans un cube de 18 in).

@@ -298,3 +298,9 @@ html, body { overflow: hidden; }
   .isl-kpis { flex-wrap: wrap; }
 }
 @media (max-width: 900px) { .side { height: 100vh; height: 100svh; } .pager { height: auto; } }
+.tiptable { grid-column: 1 / -1; }
+.tiptable .lbl { font-size: 12px; color: var(--ink-2); }
+.tt-row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; margin-top: 3px; }
+.tt-row label { font-size: 11px; }
+.tt-row input { padding: 4px 4px; text-align: center; }
+#robotForm:not(.odo) .odo-only { display: none; }

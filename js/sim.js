@@ -23,6 +23,13 @@
       return { x: cx, y: ballEdge + ny * (rd.approche + rd.hl), h, dir: [0, -ny], push: rd.approche + 1.0, allow: [],
         reach: (x) => g.balls.filter((b) => Math.abs(b.x - x) <= rd.hw).length };
     }
+    if (src === 'nectar') {
+      // NECTAR posé par le joueur humain au milieu de la LOADING ZONE (G427.C) : on y va face au mur
+      const z = world.loading;
+      const cx = (z.x0 + z.x1) / 2, cy = (z.y0 + z.y1) / 2;
+      const h = G.wrap(Math.PI - rd.intakeSens);
+      return { x: cx + 1.8 + rd.approche + rd.hl, y: cy, h, dir: [-1, 0], push: rd.approche + 1.0, allow: [], reach: () => 1 };
+    }
     const f = world.flowers.find((ff) => ff.id === src);
     if (!f) return null;
     const facing = Math.atan2(-f.ny, -f.nx);
@@ -79,17 +86,17 @@
   BZ.shotOutcomes = function (result, world, robot, game, rng) {
     const out = { shots: [], tips: [] };
     if (!result) return out;
-    let fill = world.startFill, tips = 0, count = world.startNectar;
+    let nN = world.startNectar, nP = 0, tips = 0;
     for (const s of result.shots) {
       if (s.t > game.dureeAuto) break;
       const cellIdx = tips % 2;
       const p = BZ.hitProb(world, robot, s.x, s.y, s.aim, world.cellTargets[cellIdx]);
       const hit = rng ? rng() < p : p > 0;
       const tArr = s.t + BZ.FLIGHT;
-      out.shots.push(Object.assign({}, s, { hit, cellIdx, tArr, slot: hit ? count : -1 }));
+      out.shots.push(Object.assign({}, s, { hit, cellIdx, tArr, slot: hit ? nN + nP : -1 }));
       if (hit) {
-        fill++; count++;
-        if (BZ.tipsAt(fill, game)) { fill = 0; count = 0; tips++; out.tips.push(tArr); }
+        if (s.kind === 'nectar') nN++; else nP++;
+        if (BZ.cellTips(game, nN, nP)) { nN = 0; nP = 0; tips++; out.tips.push(tArr); }
       }
     }
     return out;
@@ -103,7 +110,8 @@
     const world = this.world, rd = this.rd, robot = this.robot, game = this.game;
     const st = {
       x: plan.start.x, y: plan.start.y, h: plan.start.h, t: 0,
-      held: Math.min(4, game.prechargees), fill: world.startFill, tipsBelief: 0,
+      held: Math.min(4, game.prechargees), heldN: 0, cellN: world.startNectar, cellP: 0, tipsBelief: 0,
+      nectarQueue: [], nectarLeft: game.nectarHumain ? (game.nectarReserve === undefined ? 5 : game.nectarReserve) : 0,
       avail: { jardin: world.garden.balls.length }, prims: [], faults: {}, shots: [], events: [], moved: false,
       launcherOn: false,
     };
@@ -116,6 +124,8 @@
     if (startErr.length) fault('G304', startErr.join(' ; '));
 
     const self = this;
+    const odo = !!rd.odo;
+    const pause = odo ? 0 : rd.pause; // odométrie : pas d'arrêt entre deux mouvements
     const pushPrim = (p) => { p.t0 = st.t; st.t += p.dur || 0; p.t1 = st.t; st.prims.push(p); };
 
     const checkAt = (x, y, h, allow) => {
@@ -129,7 +139,7 @@
       for (let i = 1; i <= n; i++) checkAt(st.x, st.y, st.h + (d * i) / n, allow);
       const from = { x: st.x, y: st.y, h: st.h };
       st.h = G.wrap(st.h + d);
-      pushPrim({ k: 'turn', deg: d / DEG, dur: rd.pause + Math.abs(d) / rd.wRot, from, to: { x: st.x, y: st.y, h: st.h }, label });
+      pushPrim({ k: 'turn', deg: d / DEG, dur: pause + Math.abs(d) / rd.wRot, from, to: { x: st.x, y: st.y, h: st.h }, label });
       st.moved = true;
     };
 
@@ -147,7 +157,7 @@
       for (let i = 1; i <= n; i++) checkAt(st.x + (dx * i) / n, st.y + (dy * i) / n, st.h, allow);
       const from = { x: st.x, y: st.y, h: st.h };
       st.x = x; st.y = y;
-      const dur = rd.pause + Math.max(Math.abs(f) / rd.vAvant, Math.abs(sl) / rd.vCrabe);
+      const dur = pause + Math.max(Math.abs(f) / rd.vAvant, Math.abs(sl) / rd.vCrabe);
       pushPrim({ k: 'move', f, s: robot.chassis === 'tank' ? 0 : sl, dur, from, to: { x, y, h: st.h }, label });
       st.moved = true;
     };
@@ -181,14 +191,14 @@
     };
     const turnTime = (h0, h1) => {
       const d = Math.abs(G.wrap(h1 - h0));
-      return d < 0.5 * DEG ? 0 : rd.pause + d / rd.wRot;
+      return d < 0.5 * DEG ? 0 : pause + d / rd.wRot;
     };
     const moveTime = (x0, y0, x1, y1, h) => {
       const dx = x1 - x0, dy = y1 - y0;
       if (Math.hypot(dx, dy) < 0.5) return 0;
       const c = Math.cos(h), s = Math.sin(h);
       const f = dx * c + dy * s, sl = -dx * s + dy * c;
-      return rd.pause + Math.max(Math.abs(f) / rd.vAvant, Math.abs(sl) / rd.vCrabe);
+      return pause + Math.max(Math.abs(f) / rd.vAvant, Math.abs(sl) / rd.vCrabe);
     };
 
     // Manœuvre directe (sans contourner d'obstacle) la plus rapide pour aller en (x, y, hFinal) :
@@ -283,7 +293,7 @@
       if (Math.abs(f) < 0.3) return;
       const from = { x: st.x, y: st.y, h: st.h };
       st.x = x; st.y = y;
-      pushPrim({ k: 'move', f, s: 0, dur: rd.pause + Math.abs(f) / rd.vAvant, from, to: { x, y, h: st.h }, label });
+      pushPrim({ k: 'move', f, s: 0, dur: pause + Math.abs(f) / rd.vAvant, from, to: { x, y, h: st.h }, label });
       st.moved = true;
     };
 
@@ -319,6 +329,64 @@
       return true;
     };
 
+    // Odométrie (Pedro Pathing) : un trajet (courbe + approche) est suivi d'un seul geste, sans
+    // arrêt ; le mecanum tourne pendant qu'il roule. On recalcule les durées du groupe de
+    // mouvements : temps de parcours à vitesse max + accélération / freinage.
+    st.groups = [];
+    const travel = (fn, info) => {
+      const i0 = st.prims.length, t0 = st.t;
+      const from = { x: st.x, y: st.y, h: st.h };
+      const ok = fn();
+      if (odo && ok !== false) odoRetime(i0, t0);
+      if (ok !== false && st.prims.length > i0) {
+        const g = Object.assign({ from, to: { x: st.x, y: st.y, h: st.h }, i0, i1: st.prims.length }, info || {});
+        g.pts = st.prims.slice(i0).filter((p) => p.k === 'move').map((p) => [p.to.x, p.to.y]);
+        st.groups.push(g);
+        for (let i = i0; i < st.prims.length; i++) st.prims[i].g = st.groups.length - 1;
+      }
+      return ok;
+    };
+    const odoRetime = (i0, t0) => {
+      const ps = st.prims.slice(i0);
+      if (!ps.length) return;
+      const moves = ps.filter((p) => p.k === 'move');
+      const L = moves.reduce((a, p) => a + Math.hypot(p.to.x - p.from.x, p.to.y - p.from.y), 0);
+      const dH = ps.filter((p) => p.k === 'turn').reduce((a, p) => a + p.deg * DEG, 0);
+      const acc = rd.vOdo / rd.aOdo; // temps perdu à accélérer puis freiner
+      if (robot.chassis !== 'tank' && moves.length) {
+        // le cap change pendant la translation : on fond les rotations dans les mouvements
+        const tMove = L / rd.vAvant + acc, tTurn = Math.abs(dH) / rd.wRot;
+        const total = Math.max(tMove, tTurn);
+        const h0 = ps[0].from.h;
+        let c = 0;
+        const out = [];
+        for (const p of moves) {
+          const l = Math.hypot(p.to.x - p.from.x, p.to.y - p.from.y);
+          const ha = h0 + (dH * c) / Math.max(1e-9, L);
+          c += l;
+          const hb = h0 + (dH * c) / Math.max(1e-9, L);
+          out.push(Object.assign(p, { from: Object.assign({}, p.from, { h: G.wrap(ha) }), to: Object.assign({}, p.to, { h: G.wrap(hb) }), dh: hb - ha, dur: (total * l) / Math.max(1e-9, L) }));
+        }
+        st.prims.splice(i0, ps.length, ...out);
+      } else {
+        for (const p of ps) if (p.k === 'move') p.dur = Math.hypot(p.to.x - p.from.x, p.to.y - p.from.y) / rd.vAvant + acc;
+      }
+      let t = t0;
+      for (let i = i0; i < st.prims.length; i++) { const p = st.prims[i]; p.t0 = t; t += p.dur || 0; p.t1 = t; }
+      st.t = t;
+    };
+    // Après une bascule (selon le compte du robot), le joueur humain pose un NECTAR dans la LOADING ZONE.
+    const tipBelief = (tArr) => {
+      st.tipsBelief++; st.cellN = 0; st.cellP = 0;
+      st.events.push({ t: tArr, type: 'tip' });
+      if (st.nectarLeft > 0) {
+        st.nectarLeft--;
+        const ta = tArr + (game.delaiHumain_s === undefined ? 2 : game.delaiHumain_s);
+        st.nectarQueue.push(ta);
+        st.events.push({ t: ta, type: 'nectarDrop' });
+      }
+    };
+
     st.steps = [];
     const actions = (plan.actions || []).slice();
     for (let ai = 0; ai < actions.length; ai++) {
@@ -326,8 +394,7 @@
       const step = st.steps[ai] = { t0: st.t, t1: st.t, done: false };
       const stepDone = () => { step.t1 = st.t; step.done = true; };
       if (a.type === 'via') {
-        if (!followCurve(a.ctrl, a.x, a.y, 'Point de passage')) break;
-        if (!passThrough(a.x, a.y, 'Point de passage')) break;
+        if (!travel(() => followCurve(a.ctrl, a.x, a.y, 'Point de passage') && passThrough(a.x, a.y, 'Point de passage'), { ctrl: a.ctrl, kind: 'via' })) break;
         stepDone();
       } else if (a.type === 'tir') {
         if (st.held <= 0) continue;
@@ -349,23 +416,45 @@
         const nTir = Math.max(1, Math.min(st.held, a.n || st.held));
         const label = `Tir de ${nTir} balle(s)` + (nTir < st.held ? ` (garde ${st.held - nTir})` : '');
         ensureLauncher();
-        if (!followCurve(a.ctrl, a.x, a.y, 'Vers position de tir')) break;
-        if (!goTo(a.x, a.y, hF, 'Vers position de tir')) break;
+        if (!travel(() => followCurve(a.ctrl, a.x, a.y, 'Vers position de tir') && goTo(a.x, a.y, hF, 'Vers position de tir'), { ctrl: a.ctrl, kind: 'tir' })) break;
         const waitSpin = robot.lanceur.monteeMs / 1000 - (st.t - st.launcherT);
         if (waitSpin > 0) pushPrim({ k: 'wait', ms: Math.round(waitSpin * 1000), dur: waitSpin, label: 'Montée du lanceur' });
         const n = nTir;
         const tFeed0 = st.t;
         pushPrim({ k: 'feed', n, ms: robot.lanceur.msParBalle * n, dur: (robot.lanceur.msParBalle * n) / 1000, label });
         for (let b = 0; b < n; b++) {
-          st.shots.push({ t: tFeed0 + ((b + 1) * robot.lanceur.msParBalle) / 1000, x: st.x, y: st.y, aim: G.wrap(st.h + rd.tirSens) });
+          // les NECTAR tenus partent en premier
+          const kind = b < st.heldN ? 'nectar' : 'pollen';
+          const t = tFeed0 + ((b + 1) * robot.lanceur.msParBalle) / 1000;
+          st.shots.push({ t, x: st.x, y: st.y, aim: G.wrap(st.h + rd.tirSens), kind });
           if (cellIdx !== st.tipsBelief % 2) continue; // CELL déjà basculée (balle de marge)
-          st.fill++;
-          if (BZ.tipsAt(st.fill, game)) { st.tipsBelief++; st.fill = 0; st.events.push({ t: st.shots[st.shots.length - 1].t + BZ.FLIGHT, type: 'tip' }); }
+          if (kind === 'nectar') st.cellN++; else st.cellP++;
+          if (BZ.cellTips(game, st.cellN, st.cellP)) tipBelief(t + BZ.FLIGHT);
         }
+        st.heldN = Math.max(0, st.heldN - n);
         st.held -= n;
         // on n'éteint le lanceur que si on ne retire pas juste après
         const next = actions.slice(ai + 1).find((x) => x.type === 'tir');
         if (!next) launcherOff();
+        stepDone();
+      } else if (a.type === 'ramasse' && a.src === 'nectar') {
+        // NECTAR posé par le joueur humain (seulement après une bascule, si l'intake le peut)
+        if (!(robot.intake && robot.intake.nectar) || st.held >= 4 || !st.nectarQueue.length) continue;
+        const pose = BZ.pickupPose(world, 'nectar');
+        const nom = 'NECTAR (LOADING ZONE)';
+        if (!travel(() => followCurve(a.ctrl, pose.x, pose.y, 'Vers ' + nom) && goTo(pose.x, pose.y, pose.h, 'Vers ' + nom), { ctrl: a.ctrl, kind: 'ramasse' })) break;
+        const ta = st.nectarQueue[0];
+        if (ta > st.t) pushPrim({ k: 'wait', ms: Math.round((ta - st.t) * 1000), dur: ta - st.t, label: 'Attente du NECTAR' });
+        pushPrim({ k: 'intakeOn', dur: 0, label: 'Intake ON' });
+        const sign = rd.intakeSens === 0 ? 1 : -1;
+        moveStraight(sign * pose.push, pose.allow, 'Ramassage ' + nom);
+        const w = robot.intake.msParBalle / 1000;
+        pushPrim({ k: 'wait', ms: Math.round(w * 1000), dur: w, label: 'Ramasse 1 NECTAR' });
+        st.events.push({ t: st.t, type: 'pickup', src: 'nectar', n: 1 });
+        moveStraight(-sign * pose.push, pose.allow, 'Recul');
+        pushPrim({ k: 'intakeOff', dur: 0, label: 'Intake OFF' });
+        st.nectarQueue.shift();
+        st.held += 1; st.heldN += 1;
         stepDone();
       } else if (a.type === 'ramasse') {
         const can = a.src === 'jardin' ? robot.intake.sol : robot.intake.fleur;
@@ -384,8 +473,7 @@
         const n = Math.min(4 - st.held, st.avail[a.src], pose.reach(pose.x));
         if (n <= 0) continue;
         const nom = a.src === 'jardin' ? 'GARDEN' : (world.flowers.find((f) => f.id === a.src) || {}).nom;
-        if (!followCurve(a.ctrl, pose.x, pose.y, 'Vers ' + nom)) break;
-        if (!goTo(pose.x, pose.y, pose.h, 'Vers ' + nom)) break;
+        if (!travel(() => followCurve(a.ctrl, pose.x, pose.y, 'Vers ' + nom) && goTo(pose.x, pose.y, pose.h, 'Vers ' + nom), { ctrl: a.ctrl, kind: 'ramasse' })) break;
         pushPrim({ k: 'intakeOn', dur: 0, label: 'Intake ON' });
         const allow = pose.allow;
         // l'intake est à l'avant (push > 0) ou à l'arrière (on recule vers la source)
@@ -406,7 +494,7 @@
     if (plan.park && plan.park.on) {
       const p = BZ.parkPose(world, plan.park.t, st.h);
       const t0 = st.t;
-      if (followCurve(plan.park.ctrl, p.x, p.y, 'Vers LOADING ZONE (PARK)')) goTo(p.x, p.y, p.h, 'Vers LOADING ZONE (PARK)');
+      travel(() => followCurve(plan.park.ctrl, p.x, p.y, 'Vers LOADING ZONE (PARK)') && goTo(p.x, p.y, p.h, 'Vers LOADING ZONE (PARK)'), { ctrl: plan.park.ctrl, kind: 'park' });
       st.parkStep = { t0, t1: st.t };
     }
 
@@ -425,7 +513,7 @@
       if (p.k === 'turn') {
         return { x: p.from.x, y: p.from.y, h: G.wrap(p.from.h + G.wrap(p.to.h - p.from.h) * u) };
       }
-      return { x: p.from.x + (p.to.x - p.from.x) * u, y: p.from.y + (p.to.y - p.from.y) * u, h: p.from.h };
+      return { x: p.from.x + (p.to.x - p.from.x) * u, y: p.from.y + (p.to.y - p.from.y) * u, h: p.dh ? G.wrap(p.from.h + p.dh * u) : p.from.h };
     }
     return pose;
   };
@@ -434,23 +522,23 @@
     const world = this.world, robot = this.robot, game = this.game;
     const T = game.dureeAuto;
     const endT = st.t;
-    for (const p of st.prims) if (p.k === 'turn' || p.k === 'move') p.pauseDur = this.rd.pause;
+    for (const p of st.prims) if (p.k === 'turn' || p.k === 'move') p.pauseDur = this.rd.odo ? 0 : this.rd.pause;
     const final = BZ.poseAt(st.prims, plan.start, T);
 
     // Espérance du nombre de bascules (programmation dynamique exacte sur les tirs).
-    const r3 = (v) => Math.round(v * 1000) / 1000;
-    let dist = new Map([[r3(world.startFill) + ',0', 1]]);
+    // état = (NECTAR, POLLEN dans la CELL du haut, bascules)
+    let dist = new Map([[world.startNectar + ',0,0', 1]]);
     for (const s of st.shots) {
       if (s.t > T) break;
       const next = new Map();
       for (const [key, pr] of dist) {
-        const [fill, tips] = key.split(',').map(Number);
+        const [n, q, tips] = key.split(',').map(Number);
         const cell = world.cellTargets[tips % 2];
         const p = BZ.hitProb(world, robot, s.x, s.y, s.aim, cell);
         const add = (k, v) => next.set(k, (next.get(k) || 0) + v);
         if (p > 0) {
-          const f2 = r3(fill + 1);
-          add(BZ.tipsAt(f2, game) ? '0,' + (tips + 1) : f2 + ',' + tips, pr * p);
+          const n2 = s.kind === 'nectar' ? n + 1 : n, q2 = s.kind === 'nectar' ? q : q + 1;
+          add(BZ.cellTips(game, n2, q2) ? '0,0,' + (tips + 1) : n2 + ',' + q2 + ',' + tips, pr * p);
         }
         if (p < 1) add(key, pr * (1 - p));
       }
@@ -459,9 +547,9 @@
     let eTips = 0, pAtLeast1 = 0, eFill = 0;
     const tipsDist = [0, 0, 0, 0, 0, 0]; // probabilité d'avoir exactement k bascules
     for (const [key, pr] of dist) {
-      const [fill, tips] = key.split(',').map(Number);
+      const [n, q, tips] = key.split(',').map(Number);
       eTips += tips * pr;
-      eFill += fill * pr;
+      eFill += Math.min(1, q / Math.max(1, BZ.tipNeed(game, n))) * pr; // part de la bascule suivante déjà faite
       if (tips >= 1) pAtLeast1 += pr;
       tipsDist[Math.min(5, tips)] += pr;
     }
@@ -483,10 +571,10 @@
     const nominalTips = BZ.shotOutcomes({ shots: st.shots }, world, robot, game, null).tips.length;
     const marge = Math.max(0, endT - (T - game.margeSecurite));
     // petit bonus pour les balles déjà dans la CELL : guide l'IA vers la bascule suivante
-    let fitness = expected + 3 * (eFill / game.seuilBascule) - 3 * penalty - 25 * internal - 15 * marge - 0.05 * endT;
+    let fitness = expected + 3 * eFill - 3 * penalty - 25 * internal - 15 * marge - 0.05 * endT;
     if (st.faults.G304) fitness -= 1000;
     return {
-      plan, prims: st.prims, shots: st.shots, events: st.events, faults, steps: st.steps || [], parkStep: st.parkStep || null,
+      plan, prims: st.prims, shots: st.shots, events: st.events, faults, steps: st.steps || [], parkStep: st.parkStep || null, groups: st.groups || [],
       endT, final, leave, park, eTips, pAtLeast1, nominalTips, tipsAtLeast,
       expected, penalty, fitness,
       legal: penalty === 0 && internal === 0,

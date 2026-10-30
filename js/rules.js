@@ -49,6 +49,21 @@
   // La CELL bascule quand son poids atteint le seuil (petite tolérance pour les arrondis).
   BZ.tipsAt = function (fill, game) { return fill >= game.seuilBascule - 1e-6; };
 
+  // POLLEN nécessaires pour faire basculer une CELL qui contient `nectar` NECTAR.
+  // Table de bascule (manuel V1, d'après le fichier terrain de l'équipe Horizon) : 0 NECTAR -> 8,
+  // 1 -> 7, 2 -> 6, 3 -> 3, 4 -> 1, 5 -> 0. Sans table : ancien réglage (seuil + poids d'un NECTAR).
+  BZ.DEFAULT_TIP_TABLE = [8, 7, 6, 3, 1, 0];
+  BZ.tipNeed = function (game, nectar) {
+    const t = game && game.tableBascule;
+    if (Array.isArray(t) && t.length) {
+      const v = +t[Math.max(0, Math.min(t.length - 1, nectar | 0))];
+      return isFinite(v) ? Math.max(0, v) : 8;
+    }
+    return Math.max(0, Math.ceil((game.seuilBascule || 8) - nectar * BZ.nectarWeight(game) - 1e-6));
+  };
+  // La CELL bascule-t-elle avec ce contenu ?
+  BZ.cellTips = function (game, nectar, pollen) { return pollen >= BZ.tipNeed(game, nectar); };
+
   BZ.buildWorld = function (FIELD, game, rd) {
     const half = FIELD.half;
     const red = (o) => o.alliance === 'red';

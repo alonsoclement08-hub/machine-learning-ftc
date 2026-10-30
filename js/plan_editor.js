@@ -161,6 +161,9 @@
     for (const b of g.balls) { const d = G.dist(x, y, b.x, b.y); if (d < bd) { bd = d; best = 'jardin'; } }
     const p = BZ.pickupPose(world, 'jardin');
     if (p && G.dist(x, y, p.x, p.y) < bd) best = 'jardin';
+    // LOADING ZONE : NECTAR posé par le joueur humain (si l'intake sait le prendre)
+    const z = world.loading;
+    if (!best && x >= z.x0 - 4 && x <= z.x1 + 14 && y >= z.y0 - 4 && y <= z.y1 + 4) best = 'nectar';
     return best;
   };
 
@@ -206,7 +209,8 @@
       }
       if (tool === 'ramasse') {
         const src = this.sourceAt(x, y);
-        if (!src) { app.toast('Cliquez sur une FLOWER ou sur le GARDEN de votre côté.'); return true; }
+        if (!src) { app.toast('Cliquez sur une FLOWER, le GARDEN ou la LOADING ZONE (NECTAR) de votre côté.'); return true; }
+        if (src === 'nectar' && !(app.robot().intake && app.robot().intake.nectar)) { app.toast('Cochez « Ramasse un NECTAR » dans la page Robot pour aller chercher le NECTAR.'); return true; }
         this.commit((plan) => {
           const k = this.insertIndex(plan);
           plan.actions.splice(k, 0, { type: 'ramasse', src });

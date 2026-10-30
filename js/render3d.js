@@ -270,6 +270,15 @@
         if (m) { m.visible = true; m.position.set(b.x, b.y, b.z); }
       }
     }
+    if (rs && rs.nectarZone > 0) {
+      const z = st.world.loading, col = st.alliance === 'blue' ? 'blue' : 'red';
+      for (let i = 0; i < rs.nectarZone; i++) {
+        const m = this.nectarPool[col][nk[col]++];
+        if (!m) break;
+        const [x, y] = abs((z.x0 + z.x1) / 2, (z.y0 + z.y1) / 2 + (i - (rs.nectarZone - 1) / 2) * 4);
+        m.visible = true; m.position.set(x, y, 1.8);
+      }
+    }
     for (const col of ['red', 'blue']) for (let i = nk[col]; i < this.nectarPool[col].length; i++) this.nectarPool[col][i].visible = false;
     for (; k < this.ballPool.length; k++) this.ballPool[k].visible = false;
     this.drawOverlay(st.overlay);

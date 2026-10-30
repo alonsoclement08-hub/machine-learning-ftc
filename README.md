@@ -59,8 +59,14 @@ préchargées → FLOWER 1 → FLOWER 2 → GARDEN → PARK.
   **↻ avant-arrière** et **↻ côté**. Les dimensions sont mesurées sur le modèle (cube de 18 in, R102).
 - Caractéristiques : châssis mecanum ou tank, les 3 variables, le lanceur (distance de tir,
   précision, cadence), l'intake, les noms des moteurs.
-- Match : alliance, poids qui fait basculer la HIVE (8 POLLEN), poids d'un NECTAR (1,67 POLLEN :
-  3 NECTAR + 3 POLLEN font basculer), NECTAR au départ (3), marge, PARK.
+- **Déplacement** : *Chronométré* (sans capteur, temps en ms : export Java + .blk) ou *Odométrie*
+  (roues odométriques réglées avec Pedro Pathing : vitesse max et accélération ; le robot ne
+  s'arrête pas entre deux segments et tourne en roulant ; export **Pedro Pathing v3**).
+- Intake : cases « GARDEN », « FLOWERS » et **« Ramasse un NECTAR »** (le NECTAR que le joueur
+  humain pose dans la LOADING ZONE après chaque bascule).
+- Match : alliance, **table de bascule** (POLLEN nécessaires selon les NECTAR dans la CELL :
+  0 → 8, 1 → 7, 2 → 6, 3 → 3, 4 → 1, 5 → 0, d'après le manuel V1, à vérifier), NECTAR au départ (3),
+  joueur humain et son délai, marge, PARK.
 
 ### Page 2 : Chat IA
 
@@ -72,8 +78,10 @@ Discussion avec Claude, qui peut proposer des changements du plan et des réglag
   tir dans leurs zones, courbes, points de passage, nombre de balles, départ si non verrouillé).
   Avec « Garder l'ordre de mes étapes », elle ne change ni l'ordre ni les étapes 🔒. Le terrain montre
   l'**aperçu** de l'IA : **Garder ce plan** ou **Revenir à mon plan**.
-- **Code du robot** : `AutoBiobuzzIA.java` ou `AutoBiobuzzIA.blk` du plan affiché, et où placer le
-  robot au départ.
+- **Code du robot** : `AutoBiobuzzIA.java` / `AutoBiobuzzIA.blk` (chronométré) ou
+  `AutoBiobuzzIAPedro.java` (odométrie) du plan affiché, et où placer le robot au départ.
+  Le fichier Pedro suppose le **Quickstart Pedro Pathing v3** réglé pour votre robot
+  (`org.firstinspires.ftc.teamcode.pedro.Constants.create(hardwareMap)` qui renvoie votre Follower).
 - **Sessions dans le cloud** : voir plus bas.
 
 ### Fichiers Inventor (.ipt / .iam)

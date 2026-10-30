@@ -28,6 +28,9 @@
   // v3 : les NECTAR pèsent plus lourd (poidsNectar) ; le seuil est un poids en POLLEN
   if (saved && saved.game && (saved.game.v || 0) < 3) { game.poidsNectar = BZ.defaultGame().poidsNectar; game.v = 3; }
   if (!Array.isArray(game.zones)) game.zones = [];
+  // v4 : table de bascule officielle (POLLEN nécessaires selon les NECTAR dans la CELL)
+  if (saved && saved.game && (saved.game.v || 0) < 4) { game.tableBascule = BZ.DEFAULT_TIP_TABLE.slice(); game.v = 4; }
+  if (!Array.isArray(game.tableBascule)) game.tableBascule = BZ.DEFAULT_TIP_TABLE.slice();
   // v11 : la zone partenaire devient une zone « interdite » dessinée sur le terrain
   if (game.zonePartenaire) {
     game.zones.push(Object.assign({ id: 'zpart', kind: 'interdite', color: '#7a3cff' }, game.zonePartenaire));
@@ -85,9 +88,12 @@
 
   fillForm($('robotForm'), robot);
   fillForm($('gameForm'), game);
+  const markOdo = () => $('robotForm').classList.toggle('odo', robot.deplacement === 'odometrie');
+  markOdo();
 
   $('robotForm').addEventListener('input', () => {
     readForm($('robotForm'), robot);
+    markOdo();
     persist();
     showRobotWarnings();
     if (!robotModel) preview.show(null, robot);
@@ -235,6 +241,7 @@
     renderSteps();
     renderIsland();
     renderAiBar();
+    if (pageIdx === 2) refreshExport();
   }
 
   function updateKpis() {
@@ -326,7 +333,7 @@
   const nChips = (cur) => [0, 1, 2, 3, 4].map((n) => chip('n:' + n, n ? '×' + n : 'toutes', (cur || 0) === n)).join('');
   const kindChips = (cur) => Object.entries(BZ.ZONE_KINDS).map(([k, v]) => chip('kind:' + k, v.nom.replace('Zone ', ''), cur === k)).join('');
   const swatches = (cur) => BZ.ZONE_COLORS.map((c) => `<button class="swatch${c === cur ? ' on' : ''}" type="button" data-act="color:${c}" style="background:${c}" aria-label="couleur ${c}"></button>`).join('');
-  const srcName = (src) => (src === 'jardin' ? 'GARDEN' : (worldNow().flowers.find((f) => f.id === src) || {}).nom || src);
+  const srcName = (src) => (src === 'jardin' ? 'GARDEN' : src === 'nectar' ? 'NECTAR (LOADING ZONE)' : (worldNow().flowers.find((f) => f.id === src) || {}).nom || src);
 
   function renderIsland() {
     const t = editor.tool, sel = editor.sel;
@@ -334,7 +341,7 @@
     if (aiPreview) h = '';
     else if (t === 'tir') h = `<span class="lbl">Balles par tir</span>${nChips(editor.tirN)}<span class="lbl">Cliquez où le robot s'arrête pour tirer.</span>`;
     else if (t === 'via') h = '<span class="lbl">Cliquez pour ajouter un point de passage. Avec ✋, tirez le losange au milieu d\'une flèche pour la courber.</span>';
-    else if (t === 'ramasse') h = '<span class="lbl">Cliquez sur une FLOWER ou sur le GARDEN de votre côté.</span>';
+    else if (t === 'ramasse') h = `<span class="lbl">Cliquez sur une FLOWER ou sur le GARDEN de votre côté${robot.intake.nectar ? ', ou dans la LOADING ZONE pour le NECTAR posé après une bascule' : ''}.</span>`;
     else if (t === 'park') h = `<span class="lbl">Cliquez dans la LOADING ZONE.</span>${chip('park:off', 'Pas de PARK', !(myPlan.park && myPlan.park.on))}`;
     else if (t === 'zone') h = `<span class="lbl">Type</span>${kindChips(editor.zoneKind)}<span class="lbl">Couleur</span>${swatches(editor.zoneColor)}<span class="lbl">${esc(BZ.ZONE_KINDS[editor.zoneKind].aide)} · glissez sur le terrain.</span>`;
     else if (t === 'start') h = `${chip('rot:90', '⟲ 90°')}${chip('rot:-90', '⟳ 90°')}${chip('start:free', 'Laisser l\'IA choisir', !myPlan.startLock)}<span class="lbl">Bougez la souris : le robot se colle au mur. R / Q pour tourner.</span>`;
@@ -348,7 +355,7 @@
           const zsel = a.type !== 'ramasse' && zs.length ? `<span class="lbl">Zone</span><select data-act="zone"><option value="">aucune</option>${zs.map((z, k) => `<option value="${z.id}"${a.zone === z.id ? ' selected' : ''}>${esc(BZ.ZONE_KINDS[z.kind].nom)} ${k + 1}</option>`).join('')}</select>` : '';
           h = `<span class="lbl">Étape ${sel.i + 1}</span>`;
           if (a.type === 'tir') h += nChips(a.n);
-          if (a.type === 'ramasse') h += ['fleur0', 'fleur1', 'jardin'].map((s2) => chip('src:' + s2, srcName(s2), a.src === s2)).join('');
+          if (a.type === 'ramasse') h += ['fleur0', 'fleur1', 'jardin'].concat(robot.intake.nectar ? ['nectar'] : []).map((s2) => chip('src:' + s2, srcName(s2), a.src === s2)).join('');
           h += zsel + chip('lock', a.lock ? '🔒 Verrouillée' : '🔓 Libre', !!a.lock) + (a.ctrl ? chip('straight', 'Redresser') : '') + chip('del', 'Supprimer', false, 'danger');
         }
       } else if (sel.type === 'ctrl') h = `${chip('straight', 'Redresser la flèche')}<span class="lbl">Glissez le losange pour courber.</span>`;
@@ -772,6 +779,7 @@
       startText,
       java: BZ.exportJava(best, robot, { startText }),
       blk: BZ.exportBlockly(best, robot, { startText }),
+      pedro: BZ.exportPedro(best, robot, { startText }),
     };
   }
   function refreshExport() {
@@ -782,13 +790,22 @@
       return;
     }
     $('startText').innerHTML = t.startText.map((s) => `<li>${s}</li>`).join('');
-    $('codeView').value = codeShown === 'java' ? t.java : t.blk;
+    $('codeView').value = t[codeShown] || t.java;
+    const odo = robot.deplacement === 'odometrie';
+    $('codeModeHint').innerHTML = odo
+      ? '<b>Mode odométrie</b> : utilisez <b>Pedro</b> (vraies courbes, le robot sait où il est). Le Java chronométré et le .blk suivent les mêmes points, mais sans correction de position.'
+      : '<b>Mode chronométré</b> : <b>Java</b> ou <b>.blk</b> (temps en ms). Le fichier Pedro sert si votre robot a une odométrie (choisissez « Odométrie » page 1 pour des temps justes).';
+    $('dlPedro').classList.toggle('primary', odo);
+    $('dlJava').classList.toggle('primary', !odo);
+    $('dlBlk').classList.toggle('primary', !odo);
   }
   const needPlan = () => { if (!best) { modal('Pas encore de plan', '<p>Dessinez votre AUTO sur le terrain (ou optimisez-le avec l\'IA).</p>'); return false; } return true; };
   $('dlJava').addEventListener('click', () => { if (needPlan()) download('AutoBiobuzzIA.java', exportTexts().java, 'text/x-java'); });
   $('dlBlk').addEventListener('click', () => { if (needPlan()) download('AutoBiobuzzIA.blk', exportTexts().blk, 'application/xml'); });
   $('showJava').addEventListener('click', () => { codeShown = 'java'; refreshExport(); });
   $('showBlk').addEventListener('click', () => { codeShown = 'blk'; refreshExport(); });
+  $('showPedro').addEventListener('click', () => { codeShown = 'pedro'; refreshExport(); });
+  $('dlPedro').addEventListener('click', () => { if (needPlan()) download('AutoBiobuzzIAPedro.java', exportTexts().pedro, 'text/x-java'); });
   $('copyCode').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText($('codeView').value); $('copyCode').textContent = 'Copié ✓'; }
     catch (e) { $('codeView').select(); document.execCommand('copy'); }

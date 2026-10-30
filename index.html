@@ -81,7 +81,7 @@
 
   <!-- ===================== BARRE DE DROITE : 3 PAGES ===================== -->
   <aside class="side">
-    <div class="brandline"><span aria-hidden="true">🐝</span> <b>BIOBUZZ Auto IA</b> <span class="mono" id="appVersion">v11 · 30/10</span></div>
+    <div class="brandline"><span aria-hidden="true">🐝</span> <b>BIOBUZZ Auto IA</b> <span class="mono" id="appVersion">v12 · 30/10</span></div>
     <div class="pager-head">
       <button class="btn icon ghost" id="pagePrev" type="button" aria-label="Page précédente">‹</button>
       <div class="pager-dots" role="tablist">
@@ -133,6 +133,17 @@
           <p class="hint" id="dimsHint"></p>
         </div>
 
+        <h3>Déplacement</h3>
+        <div class="grid2">
+          <label>Mode
+            <select name="deplacement"><option value="chrono">Chronométré (sans odométrie)</option><option value="odometrie">Odométrie (Pedro Pathing)</option></select>
+            <small>Odométrie : roues GoBilda Pinpoint / deadwheels réglées avec Pedro Pathing.</small>
+          </label>
+          <span></span>
+          <label class="odo-only">Vitesse max (cm/s) <input name="odo.vMax_cm_s" type="number" step="5" min="20" max="400"><small>mesurée avec les outils de réglage Pedro</small></label>
+          <label class="odo-only">Accélération (cm/s²) <input name="odo.accel_cm_s2" type="number" step="10" min="20" max="2000"></label>
+        </div>
+
         <h3 class="calib">Les 3 variables de calibrage</h3>
         <div class="grid3">
           <label><span class="mono">MS_PAR_METRE</span><input name="msParMetre" type="number" step="10" min="100"><small>ms pour avancer d'1 m</small></label>
@@ -163,6 +174,7 @@
           <label>Puissance intake <input name="intake.puissance" type="number" step="0.05" min="0" max="1"></label>
           <label class="check"><input name="intake.sol" type="checkbox"> Ramasse au sol (GARDEN)</label>
           <label class="check"><input name="intake.fleur" type="checkbox"> Sort le POLLEN du bas des FLOWERS</label>
+          <label class="check"><input name="intake.nectar" type="checkbox"> Ramasse un NECTAR (LOADING ZONE)</label>
         </div>
 
         <details>
@@ -201,20 +213,25 @@
           <label>Alliance
             <select name="alliance"><option value="red">Rouge</option><option value="blue">Bleue</option></select>
           </label>
-          <label>Poids pour faire basculer (en POLLEN)
-            <input name="seuilBascule" type="number" min="1" max="20" step="1">
-            <small>poids de la CELL du haut qui la fait basculer : 8 POLLEN. À vérifier sur un vrai terrain.</small>
-          </label>
-          <label>Poids d'un NECTAR (en POLLEN)
-            <input name="poidsNectar" type="number" min="0.5" max="4" step="0.01">
-            <small>1,67 : 3 NECTAR + 3 POLLEN font basculer. Mettre 1 si un NECTAR compte comme un POLLEN.</small>
-          </label>
+          <div class="tiptable">
+            <span class="lbl">POLLEN qui font basculer une CELL selon les NECTAR dedans <small>(manuel V1, à vérifier)</small></span>
+            <div class="tt-row">
+              <label>0 N <input name="tableBascule.0" type="number" min="0" max="20" step="1"></label>
+              <label>1 N <input name="tableBascule.1" type="number" min="0" max="20" step="1"></label>
+              <label>2 N <input name="tableBascule.2" type="number" min="0" max="20" step="1"></label>
+              <label>3 N <input name="tableBascule.3" type="number" min="0" max="20" step="1"></label>
+              <label>4 N <input name="tableBascule.4" type="number" min="0" max="20" step="1"></label>
+              <label>5 N+ <input name="tableBascule.5" type="number" min="0" max="20" step="1"></label>
+            </div>
+          </div>
           <label>NECTAR dans la CELL au départ
             <input name="nectarDepart" type="number" min="0" max="10" step="1">
             <small>Manuel TU04 : 3</small>
           </label>
           <label>Marge de sécurité (s) <input name="margeSecurite" type="number" min="0" max="10" step="0.5"></label>
           <label class="check"><input name="viserPark" type="checkbox"> Viser le PARK (LOADING ZONE)</label>
+          <label class="check"><input name="nectarHumain" type="checkbox"> Le joueur humain pose 1 NECTAR dans la LOADING ZONE à chaque bascule</label>
+          <label>Délai du joueur humain (s) <input name="delaiHumain_s" type="number" min="0" max="10" step="0.5"></label>
         </div>
         <p class="hint">Le même programme marche en rouge et en bleu : le terrain est symétrique.</p>
       </form>
@@ -263,13 +280,16 @@
           <div class="row">
             <button class="btn primary" id="dlJava" type="button">⬇ AutoBiobuzzIA.java</button>
             <button class="btn primary" id="dlBlk" type="button">⬇ AutoBiobuzzIA.blk</button>
+            <button class="btn primary" id="dlPedro" type="button">⬇ Pedro (odométrie)</button>
           </div>
           <div class="row">
             <button class="btn" id="showJava" type="button">Voir le Java</button>
             <button class="btn" id="showBlk" type="button">Voir le .blk</button>
+            <button class="btn" id="showPedro" type="button">Voir Pedro</button>
             <button class="btn" id="copyCode" type="button">Copier</button>
           </div>
           <textarea id="codeView" spellcheck="false" readonly></textarea>
+          <p class="hint" id="codeModeHint"></p>
           <p class="hint"><b>Java</b> : copiez le fichier dans <span class="mono">TeamCode/src/main/java/org/firstinspires/ftc/teamcode/</span>.
             <b>Blockly</b> : sur la page Blocks du Robot Controller, « Upload Op Mode » et choisissez le .blk.</p>
         </div>
@@ -349,6 +369,7 @@
 <script src="js/optimizer.js"></script>
 <script src="js/export_java.js"></script>
 <script src="js/export_blockly.js"></script>
+<script src="js/export_pedro.js"></script>
 <script src="js/render2d.js"></script>
 <script src="js/render3d.js"></script>
 <script src="js/plan_editor.js"></script>

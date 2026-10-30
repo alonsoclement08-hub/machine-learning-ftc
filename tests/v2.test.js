@@ -5,7 +5,7 @@ const { BZ, FIELD } = require('./load');
 
 function setup(gameOver) {
   const robot = BZ.defaultRobot();
-  const game = Object.assign(BZ.defaultGame(), { seuilBascule: 6, poidsNectar: 1 }, gameOver || {});
+  const game = Object.assign(BZ.defaultGame(), { seuilBascule: 6, poidsNectar: 1, tableBascule: null }, gameOver || {});
   const rd = BZ.robotDerived(robot);
   const world = BZ.buildWorld(FIELD, game, rd);
   const planner = new BZ.Planner(world, 2);
@@ -165,7 +165,7 @@ test('NECTAR plus lourds : 3 NECTAR (poids 1,67) + 3 POLLEN font basculer une CE
   assert.ok(Math.abs(out.tips[0] - res.shots[2].tArr) < 1e-9 || Math.abs(out.tips[0] - (res.shots[2].t + BZ.FLIGHT)) < 1e-9);
   // ensuite il faut 8 POLLEN pour la bascule suivante
   const scene = BZ.hiveScene(FIELD, { alliance: 'red', world, game, robot, outcomes: out, result: res }, 29);
-  assert.strictEqual(scene.weight, 0);
+  assert.strictEqual(scene.pollen, 0);
 });
 
 test('précision : meilleure en face de l\'ouverture à la distance idéale qu\'en biais ou trop loin', () => {

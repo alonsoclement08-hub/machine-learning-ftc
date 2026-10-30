@@ -56,20 +56,18 @@
     const oc2 = st.outcomes || { shots: [], tips: [] };
 
     // Déroulé chronologique du contenu de la CELL du haut
-    const wN = BZ.nectarWeight ? BZ.nectarWeight(game) : 1;
     let contents = [];
-    let weight = nectar0 * wN;
+    let cN = nectar0, cP = 0;
     for (let i = 0; i < nectar0; i++) contents.push('nectar-' + ours);
     let state = 0;
     const tips = []; // {t, from, balls}
     for (const s of oc2.shots) {
       if (!s.hit || s.tArr > t) continue;
-      contents.push('pollen');
-      weight += 1;
-      if (weight >= game.seuilBascule - 1e-6) {
+      if (s.kind === 'nectar') { contents.push('nectar-' + ours); cN++; } else { contents.push('pollen'); cP++; }
+      if (BZ.cellTips(game, cN, cP)) {
         tips.push({ t: s.tArr, from: state, balls: contents });
         contents = [];
-        weight = 0;
+        cN = 0; cP = 0;
         state ^= 1;
       }
     }
@@ -86,7 +84,8 @@
     out.upState = state;
     out.tipping = tipping;
     out.fill = contents.length;
-    out.weight = Math.round(weight * 10) / 10;
+    out.pollen = cP;
+    out.need = BZ.tipNeed(game, cN);
 
     // Balles dans la CELL du haut actuelle
     const slots = cells.states[state].slots;
@@ -121,14 +120,15 @@
       if (s.hit) {
         if (t >= s.tArr) continue; // déjà dans la CELL (ou tombée avec la bascule)
         const target = cells.states[s.cellIdx].slots[Math.min(s.slot, cells.states[s.cellIdx].slots.length - 1)];
-        out.balls.push(Object.assign({ kind: 'pollen', flying: true }, BZ.shotArc(from, target, (t - s.t) / BZ.FLIGHT)));
+        out.balls.push(Object.assign({ kind: s.kind === 'nectar' ? 'nectar-' + ours : 'pollen', flying: true }, BZ.shotArc(from, target, (t - s.t) / BZ.FLIGHT)));
       } else {
         // raté : la balle tape le bord de la CELL puis tombe au sol
         const rim = { x: st0.open.x + ((s.t * 17) % 6 - 3), y: st0.open.y, z: st0.open.z + 7 };
         const floor = { x: rim.x, y: st0.open.y + st0.normal[1] * 9 + ((s.t * 13) % 4 - 2), z: 1.4 };
-        if (t < s.tArr) out.balls.push(Object.assign({ kind: 'pollen', flying: true, miss: true }, BZ.shotArc(from, rim, (t - s.t) / BZ.FLIGHT)));
-        else if (t < s.tArr + FALL_DUR) out.balls.push(Object.assign({ kind: 'pollen', miss: true }, fallTo(rim, floor, (t - s.tArr) / FALL_DUR)));
-        else out.balls.push(Object.assign({ kind: 'pollen', miss: true }, floor));
+        const mk = s.kind === 'nectar' ? 'nectar-' + ours : 'pollen';
+        if (t < s.tArr) out.balls.push(Object.assign({ kind: mk, flying: true, miss: true }, BZ.shotArc(from, rim, (t - s.t) / BZ.FLIGHT)));
+        else if (t < s.tArr + FALL_DUR) out.balls.push(Object.assign({ kind: mk, miss: true }, fallTo(rim, floor, (t - s.tArr) / FALL_DUR)));
+        else out.balls.push(Object.assign({ kind: mk, miss: true }, floor));
       }
     }
     return out;

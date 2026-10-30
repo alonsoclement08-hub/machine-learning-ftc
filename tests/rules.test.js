@@ -9,6 +9,7 @@ function setup(chassis) {
   const game = BZ.defaultGame();
   game.seuilBascule = 6; // les tests de barème ci-dessous sont écrits pour un seuil de 6
   game.poidsNectar = 1; // ... où un NECTAR compte comme un POLLEN
+  game.tableBascule = null; // (ancien réglage, sans la table de bascule)
   const rd = BZ.robotDerived(robot);
   const world = BZ.buildWorld(FIELD, game, rd);
   const planner = new BZ.Planner(world, 2);
