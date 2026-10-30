@@ -1,7 +1,8 @@
 # Entraînement dans le cloud
 
-Déposez ici le fichier `config.json` téléchargé depuis l'appli (onglet **3. Entraîner**, bouton
-**Télécharger config.json**). L'IA s'entraîne alors toute seule sur un serveur GitHub (onglet
+Déposez ici le fichier `config.json` téléchargé depuis l'appli (page **Optimiser**, bouton
+**ou télécharger config.json**). Il contient le robot, le match et votre plan dessiné (point de
+départ de l'IA). L'IA s'entraîne alors toute seule sur un serveur GitHub (onglet
 **Actions** du dépôt), même si votre ordinateur est éteint.
 
 À la fin, ce dossier contient :

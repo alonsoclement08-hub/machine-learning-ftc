@@ -34,6 +34,7 @@ const merge = (def, obj) => {
 const robot = merge(BZ.defaultRobot(), cfg.robot);
 const game = merge(BZ.defaultGame(), cfg.game);
 game.zonePartenaire = (cfg.game && cfg.game.zonePartenaire) || null;
+game.zones = (cfg.game && cfg.game.zones) || [];
 game.departImpose = (cfg.game && cfg.game.departImpose) || null;
 
 const t0 = Date.now();
@@ -85,7 +86,9 @@ let lastSave = Date.now();
 console.log(`Entraînement pendant ${minutes} min (robot « ${robot.nom} », ${robot.chassis})`);
 while (Date.now() < deadline) {
   // un "essai" = une population neuve (graine différente) qui hérite du meilleur plan trouvé
-  const opt = new BZ.Optimizer(FIELD, robot, game, { seed: 1000 + runs * 7919, popSize: 90 });
+  // plan dessiné dans l'appli (facultatif) : point de départ de l'IA, ordre gardé si demandé
+  const base = cfg.plan && cfg.plan.start ? cfg.plan : null;
+  const opt = new BZ.Optimizer(FIELD, robot, game, { seed: 1000 + runs * 7919, popSize: 90, base, keepOrder: !!(base && cfg.keepOrder) });
   if (best) opt.addPlan(best.plan);
   runs++;
   let stall = 0, lastBest = -Infinity;

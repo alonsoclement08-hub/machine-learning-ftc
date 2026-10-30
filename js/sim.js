@@ -294,10 +294,42 @@
       if (st.launcherOn) { pushPrim({ k: 'launcherOff', dur: 0, label: 'Lanceur OFF' }); st.launcherOn = false; }
     };
 
+    // Passe par un point sans viser de cap particulier (points de passage, courbes) :
+    // mecanum = on garde le cap et on translate ; tank = on roule face au point.
+    const passThrough = (x, y, label) => {
+      if (G.dist(st.x, st.y, x, y) < 0.5) return true;
+      if (robot.chassis !== 'tank') {
+        if (lineOk(st.x, st.y, x, y, st.h)) { moveTo(x, y, null, label); return true; }
+        return goTo(x, y, st.h, label);
+      }
+      const a = Math.atan2(y - st.y, x - st.x);
+      const fwd = Math.abs(G.wrap(a - st.h)) <= Math.abs(G.wrap(a + Math.PI - st.h));
+      return goTo(x, y, fwd ? a : G.wrap(a + Math.PI), label);
+    };
+    // Courbe dessinée (Bézier quadratique de la position actuelle à (x, y), point de contrôle
+    // `ctrl`) : en chronométré, on la suit en 3 segments droits jusqu'aux 2/3 du chemin.
+    const followCurve = (ctrl, x, y, label) => {
+      if (!ctrl) return true;
+      const x0 = st.x, y0 = st.y;
+      for (const u of [1 / 3, 2 / 3]) {
+        const px = (1 - u) * (1 - u) * x0 + 2 * u * (1 - u) * ctrl[0] + u * u * x;
+        const py = (1 - u) * (1 - u) * y0 + 2 * u * (1 - u) * ctrl[1] + u * u * y;
+        if (!passThrough(px, py, label)) return false;
+      }
+      return true;
+    };
+
+    st.steps = [];
     const actions = (plan.actions || []).slice();
     for (let ai = 0; ai < actions.length; ai++) {
       const a = actions[ai];
-      if (a.type === 'tir') {
+      const step = st.steps[ai] = { t0: st.t, t1: st.t, done: false };
+      const stepDone = () => { step.t1 = st.t; step.done = true; };
+      if (a.type === 'via') {
+        if (!followCurve(a.ctrl, a.x, a.y, 'Point de passage')) break;
+        if (!passThrough(a.x, a.y, 'Point de passage')) break;
+        stepDone();
+      } else if (a.type === 'tir') {
         if (st.held <= 0) continue;
         // On vise la CELL dont l'ouverture fait face au point de tir (celle d'en haut avant la
         // bascule, ou celle d'en face après). Tirer plus de balles que nécessaire dans la même
@@ -317,6 +349,7 @@
         const nTir = Math.max(1, Math.min(st.held, a.n || st.held));
         const label = `Tir de ${nTir} balle(s)` + (nTir < st.held ? ` (garde ${st.held - nTir})` : '');
         ensureLauncher();
+        if (!followCurve(a.ctrl, a.x, a.y, 'Vers position de tir')) break;
         if (!goTo(a.x, a.y, hF, 'Vers position de tir')) break;
         const waitSpin = robot.lanceur.monteeMs / 1000 - (st.t - st.launcherT);
         if (waitSpin > 0) pushPrim({ k: 'wait', ms: Math.round(waitSpin * 1000), dur: waitSpin, label: 'Montée du lanceur' });
@@ -333,6 +366,7 @@
         // on n'éteint le lanceur que si on ne retire pas juste après
         const next = actions.slice(ai + 1).find((x) => x.type === 'tir');
         if (!next) launcherOff();
+        stepDone();
       } else if (a.type === 'ramasse') {
         const can = a.src === 'jardin' ? robot.intake.sol : robot.intake.fleur;
         if (!can || st.held >= 4 || !(st.avail[a.src] > 0)) continue;
@@ -350,6 +384,7 @@
         const n = Math.min(4 - st.held, st.avail[a.src], pose.reach(pose.x));
         if (n <= 0) continue;
         const nom = a.src === 'jardin' ? 'GARDEN' : (world.flowers.find((f) => f.id === a.src) || {}).nom;
+        if (!followCurve(a.ctrl, pose.x, pose.y, 'Vers ' + nom)) break;
         if (!goTo(pose.x, pose.y, pose.h, 'Vers ' + nom)) break;
         pushPrim({ k: 'intakeOn', dur: 0, label: 'Intake ON' });
         const allow = pose.allow;
@@ -364,12 +399,15 @@
         st.held += n;
         st.avail[a.src] -= n;
         if (st.held > 4) fault('G407');
+        stepDone();
       }
     }
     launcherOff();
     if (plan.park && plan.park.on) {
       const p = BZ.parkPose(world, plan.park.t, st.h);
-      goTo(p.x, p.y, p.h, 'Vers LOADING ZONE (PARK)');
+      const t0 = st.t;
+      if (followCurve(plan.park.ctrl, p.x, p.y, 'Vers LOADING ZONE (PARK)')) goTo(p.x, p.y, p.h, 'Vers LOADING ZONE (PARK)');
+      st.parkStep = { t0, t1: st.t };
     }
 
     return this.evaluate(st, plan);
@@ -448,7 +486,7 @@
     let fitness = expected + 3 * (eFill / game.seuilBascule) - 3 * penalty - 25 * internal - 15 * marge - 0.05 * endT;
     if (st.faults.G304) fitness -= 1000;
     return {
-      plan, prims: st.prims, shots: st.shots, events: st.events, faults,
+      plan, prims: st.prims, shots: st.shots, events: st.events, faults, steps: st.steps || [], parkStep: st.parkStep || null,
       endT, final, leave, park, eTips, pAtLeast1, nominalTips, tipsAtLeast,
       expected, penalty, fitness,
       legal: penalty === 0 && internal === 0,

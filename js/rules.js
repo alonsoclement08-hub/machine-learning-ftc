@@ -36,7 +36,7 @@
       texte: 'Ce qui n\'est pas fini à 30 s ne rapporte rien (et bouger pendant la transition = G403).' },
     FLOWER_CHOC: { titre: 'Choc avec une FLOWER (risque de faire tomber des balles)', points: 0,
       texte: 'Pas une faute en soi, mais l\'IA l\'évite.' },
-    PARTENAIRE: { titre: 'Entrée dans la zone réservée au partenaire', points: 0,
+    PARTENAIRE: { titre: 'Entrée dans une zone interdite (partenaire)', points: 0,
       texte: 'Zone que vous avez dessinée pour votre robot partenaire.' },
   };
 
@@ -86,6 +86,11 @@
     if (game.zonePartenaire) {
       const z = game.zonePartenaire;
       obstacles.push({ kind: 'partner', rule: 'PARTENAIRE', poly: G.rectPoly(z.x0, z.y0, z.x1, z.y1) });
+    }
+    // zones dessinées sur le terrain : les zones « interdites » sont des obstacles pour le robot
+    for (const z of game.zones || []) {
+      if (z.kind !== 'interdite') continue;
+      obstacles.push({ kind: 'partner', rule: 'PARTENAIRE', id: z.id, poly: G.rectPoly(Math.min(z.x0, z.x1), Math.min(z.y0, z.y1), Math.max(z.x0, z.x1), Math.max(z.y0, z.y1)) });
     }
     const cells = FIELD.hive.cells.red;
     const w = {

@@ -7,34 +7,93 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<header class="top">
-  <div class="brand">
-    <span class="logo" aria-hidden="true">🐝</span>
-    <div>
-      <h1>BIOBUZZ Auto IA</h1>
-      <p class="sub">FTC 2026-2027 · l'IA cherche le meilleur AUTO de 30 s pour votre robot · <span class="mono" id="appVersion">v10 · 14/10</span></p>
+<main class="app">
+  <!-- ===================== TERRAIN ===================== -->
+  <section class="stage" id="stage">
+    <div class="views">
+      <canvas id="field2d" class="view active" aria-label="Terrain vu de dessus" tabindex="0"></canvas>
+      <div id="field3d" class="view" aria-label="Terrain en 3D"></div>
     </div>
-  </div>
-  <div class="score-strip" id="scoreStrip">
-    <div class="kpi"><span class="kpi-label">Score AUTO espéré</span><span class="kpi-value" id="kpiScore">–</span></div>
-    <div class="kpi"><span class="kpi-label">Bascules HIVE</span><span class="kpi-value" id="kpiTips">–</span></div>
-    <div class="kpi"><span class="kpi-label">Durée</span><span class="kpi-value" id="kpiTime">–</span></div>
-    <div class="kpi"><span class="kpi-label">Fautes</span><span class="kpi-value" id="kpiFaults">–</span></div>
-  </div>
-</header>
 
-<main class="layout">
-  <aside class="panel">
-    <nav class="tabs" role="tablist">
-      <button class="tab active" data-tab="robot" role="tab">1. Robot</button>
-      <button class="tab" data-tab="jeu" role="tab">2. Match</button>
-      <button class="tab" data-tab="ia" role="tab">3. Entraîner</button>
-      <button class="tab" data-tab="export" role="tab">4. Exporter</button>
-      <button class="tab" data-tab="cloud" role="tab">☁ Sessions</button>
-    </nav>
+    <!-- Île dynamique : outils de dessin + scores -->
+    <div class="island" id="island">
+      <div class="isl-main">
+        <div class="isl-tools" role="toolbar" aria-label="Outils">
+          <button class="tool active" type="button" data-tool="select" title="Sélectionner / déplacer (V)">✋<span>Choisir</span></button>
+          <button class="tool" type="button" data-tool="via" title="Flèche : point de passage (A). Tirez la poignée du milieu pour courber.">➜<span>Flèche</span></button>
+          <button class="tool" type="button" data-tool="tir" title="Tir (T) : cliquez où le robot s'arrête pour tirer">◎<span>Tir</span></button>
+          <button class="tool" type="button" data-tool="ramasse" title="Ramasser (P) : cliquez une FLOWER ou le GARDEN">⬚<span>Ramasser</span></button>
+          <button class="tool" type="button" data-tool="zone" title="Zone (Z) : glissez pour dessiner">▭<span>Zone</span></button>
+          <button class="tool" type="button" data-tool="park" title="PARK : cliquez dans la LOADING ZONE">🅿<span>Park</span></button>
+          <button class="tool" type="button" data-tool="start" title="Départ du robot (D) : R / Q pour tourner">🤖<span>Départ</span></button>
+          <button class="tool only3d" type="button" data-tool="orbit" title="Orbite (comme en CAO) : glisser = tourner, clic droit = déplacer, molette = zoom">🧭<span>Orbite</span></button>
+          <i class="isl-sep"></i>
+          <button class="tool mini" type="button" id="undoBtn" title="Annuler (Ctrl+Z)">↶</button>
+          <button class="tool mini" type="button" id="redoBtn" title="Rétablir (Ctrl+Y)">↷</button>
+          <button class="tool mini" type="button" id="delBtn" title="Supprimer la sélection (Suppr)">🗑</button>
+        </div>
+        <div class="isl-kpis">
+          <span class="pill" title="Score AUTO espéré"><b id="kpiScore">–</b></span>
+          <span class="pill" title="Bascules de la HIVE espérées (max)">🐝 <b id="kpiTips">–</b></span>
+          <span class="pill" title="Durée du plan">⏱ <b id="kpiTime">–</b></span>
+          <span class="pill" title="Fautes">⚠ <b id="kpiFaults">–</b></span>
+        </div>
+      </div>
+      <div class="isl-opts" id="islOpts"></div>
+    </div>
 
-    <!-- ===================== ROBOT ===================== -->
-    <section class="tabpane active" id="tab-robot">
+    <!-- Bandeau d'aperçu de l'IA (avant / après) -->
+    <div class="aibar" id="aiBar" hidden></div>
+
+    <!-- Étapes du plan -->
+    <div class="dock collapsed" id="dock">
+      <button class="dock-head" id="dockToggle" type="button"><span>📋 Mon plan</span><span id="dockSummary" class="hint"></span><span class="chev">▾</span></button>
+      <div class="dock-body">
+        <ol id="planSteps" class="psteps"></ol>
+        <div class="row">
+          <button class="btn" id="planTeam" type="button" title="Préchargées → FLOWER 1 → FLOWER 2 → GARDEN → PARK">Plan de l'équipe</button>
+          <button class="btn" id="planFromAI" type="button">Partir du plan de l'IA</button>
+          <button class="btn ghost" id="planClear" type="button">Tout effacer</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="planSave" type="button">Exporter le plan (.json)</button>
+          <label class="btn file">Importer un plan…<input type="file" id="planLoad" accept=".json"></label>
+        </div>
+        <div id="faultList" class="warnings"></div>
+      </div>
+    </div>
+
+    <!-- Bas : 2D/3D + lecture -->
+    <div class="bottombar">
+      <div class="seg" role="tablist" aria-label="Vue">
+        <button class="segbtn active" data-view="2d" type="button">2D</button>
+        <button class="segbtn" data-view="3d" type="button">3D</button>
+      </div>
+      <div class="player">
+        <button class="btn icon" id="playBtn" type="button" title="Rejouer le plan">▶</button>
+        <input type="range" id="timeSlider" min="0" max="30" step="0.05" value="0" aria-label="Temps">
+        <span class="mono" id="timeLabel">0.0 s</span>
+        <label class="check small" title="Tire chaque balle au hasard avec la précision du robot"><input type="checkbox" id="randomMatch"> aléatoire</label>
+      </div>
+    </div>
+    <p class="animnote" id="animNote">Animation : tous les tirs possibles entrent. Le score affiché est l'espérance.</p>
+  </section>
+
+  <!-- ===================== BARRE DE DROITE : 3 PAGES ===================== -->
+  <aside class="side">
+    <div class="brandline"><span aria-hidden="true">🐝</span> <b>BIOBUZZ Auto IA</b> <span class="mono" id="appVersion">v11 · 30/10</span></div>
+    <div class="pager-head">
+      <button class="btn icon ghost" id="pagePrev" type="button" aria-label="Page précédente">‹</button>
+      <div class="pager-dots" role="tablist">
+        <button class="pdot active" data-page="0" type="button"><i></i><span>Robot</span></button>
+        <button class="pdot" data-page="1" type="button"><i></i><span>Chat IA</span></button>
+        <button class="pdot" data-page="2" type="button"><i></i><span id="optDotLabel">Optimiser</span></button>
+      </div>
+      <button class="btn icon ghost" id="pageNext" type="button" aria-label="Page suivante">›</button>
+    </div>
+    <div class="pager" id="pager">
+      <!-- PAGE 1 : ROBOT & MATCH -->
+      <section class="page" id="page-robot" aria-label="Robot et match">
       <div class="card">
         <h2>Modèle 3D du robot</h2>
         <p class="hint">Importez votre robot en <b>STL</b> (le plus rapide, quelques secondes), <b>STEP</b> (.step / .stp) ou IGES. Les dimensions sont mesurées automatiquement.</p>
@@ -135,10 +194,7 @@
           <button class="btn ghost" id="resetRobot" type="button">Valeurs par défaut</button>
         </div>
       </form>
-    </section>
-
-    <!-- ===================== MATCH ===================== -->
-    <section class="tabpane" id="tab-jeu">
+        <h2 class="pagetitle">Match</h2>
       <form id="gameForm" class="card" autocomplete="off">
         <h2>Match</h2>
         <div class="grid2">
@@ -162,94 +218,70 @@
         </div>
         <p class="hint">Le même programme marche en rouge et en bleu : le terrain est symétrique.</p>
       </form>
-      <div class="card">
-        <h2>Contraintes sur le terrain</h2>
-        <h3>Position de départ</h3>
-        <div class="row">
-          <button class="btn primary" id="placeStart" type="button">Placer le robot</button>
-          <button class="btn icon" id="rotLeft" type="button" title="Tourner de 90° (Q)">⟲</button>
-          <button class="btn icon" id="rotRight" type="button" title="Tourner de 90° (E ou R)">⟳</button>
-          <button class="btn ghost" id="clearStart" type="button">Laisser l'IA choisir</button>
-        </div>
-        <p class="hint">Cliquez « Placer le robot » puis bougez la souris sur le terrain (vue 2D) : le robot se colle au mur le plus proche. <b>R/E</b> ou <b>Q</b> pour le tourner, clic pour le poser.</p>
-        <h3>Zone du partenaire</h3>
-        <div class="row">
-          <button class="btn" id="drawPartner" type="button">Dessiner la zone du partenaire</button>
-          <button class="btn ghost" id="clearPartner" type="button">Effacer la zone</button>
-        </div>
-        <div id="constraintStatus" class="status"></div>
-      </div>
       <div class="card rules">
         <h2>Règles vérifiées (manuel TU04)</h2>
         <ul id="rulesList"></ul>
         <p class="hint">Points AUTO : LEAVE 3 · PARK 5 · HIVE TIP 20. MINOR FOUL = 5 pts et MAJOR FOUL = 20 pts pour l'adversaire.</p>
       </div>
-    </section>
+      </section>
 
-    <!-- ===================== IA ===================== -->
-    <section class="tabpane" id="tab-ia">
-      <div class="card">
-        <h2>Apprentissage</h2>
-        <p class="hint">Algorithme génétique : une population de stratégies est simulée, les meilleures se croisent et mutent à chaque génération.</p>
-        <div class="row">
-          <button class="btn primary" id="trainBtn" type="button">▶ Lancer l'entraînement</button>
-          <button class="btn ghost" id="resetTrain" type="button">Recommencer</button>
+      <!-- PAGE 2 : CHAT IA -->
+      <section class="page" id="page-chat" aria-label="Assistant IA">
+        <div class="card" id="chatCard">
+          <h2>Assistant IA</h2>
+          <p class="hint">Bientôt : discutez avec Claude, il peut modifier votre plan et les réglages du robot.</p>
         </div>
-        <label class="inline">Générations <input id="maxGen" type="number" value="300" min="10" max="5000" step="10"></label>
-        <div class="stats">
-          <div><span>Génération</span><b id="genCount">0</b></div>
-          <div><span>Stratégies testées</span><b id="evalCount">0</b></div>
-          <div><span>Meilleur score</span><b id="bestScore">–</b></div>
-        </div>
-        <canvas id="chart" height="140" aria-label="Évolution du meilleur score"></canvas>
-      </div>
-      <div class="card">
-        <h2>Entraînement long (ordinateur éteint)</h2>
-        <p class="hint">Pour entraîner pendant des heures sur un serveur GitHub, même ordinateur éteint : onglet <b>☁ Sessions</b>.</p>
-        <div id="cloudBanner" class="warn-box" hidden></div>
-        <div class="row">
-          <label class="btn file">Importer un résultat (resultat.json)…<input type="file" id="loadResult" accept=".json"></label>
-        </div>
-        <div id="cloudStatus" class="status"></div>
-      </div>
-      <div class="card">
-        <h2>Meilleur plan</h2>
-        <ol id="planSteps" class="steps"></ol>
-        <div id="faultList" class="warnings"></div>
-      </div>
-    </section>
+      </section>
 
-    <!-- ===================== EXPORT ===================== -->
-    <section class="tabpane" id="tab-export">
-      <div class="card">
-        <h2>Placement de départ</h2>
-        <ul id="startText" class="plain"></ul>
-      </div>
-      <div class="card">
-        <h2>Exporter</h2>
-        <div class="row">
-          <button class="btn primary" id="dlJava" type="button">Télécharger AutoBiobuzzIA.java</button>
-          <button class="btn primary" id="dlBlk" type="button">Télécharger AutoBiobuzzIA.blk</button>
+      <!-- PAGE 3 : OPTIMISER, SESSIONS, CODE -->
+      <section class="page" id="page-opt" aria-label="Optimiser">
+        <div class="card">
+          <h2>Optimiser avec l'IA</h2>
+          <p class="hint">L'IA part de <b>votre plan</b> et essaie des milliers de variantes : points de tir, courbes, nombre de balles, départ.</p>
+          <label class="check"><input type="checkbox" id="keepOrder" checked> Garder l'ordre de mes étapes (et les étapes 🔒)</label>
+          <div class="row">
+            <button class="btn primary" id="trainBtn" type="button">▶ Optimiser mon plan</button>
+            <button class="btn ghost" id="resetTrain" type="button">Recommencer</button>
+          </div>
+          <label class="inline">Générations <input id="maxGen" type="number" value="300" min="10" max="5000" step="10"></label>
+          <div class="stats">
+            <div><span>Génération</span><b id="genCount">0</b></div>
+            <div><span>Variantes testées</span><b id="evalCount">0</b></div>
+            <div><span>Meilleur score</span><b id="bestScore">–</b></div>
+          </div>
+          <canvas id="chart" height="140" aria-label="Évolution du meilleur score"></canvas>
+          <div id="cloudBanner" class="warn-box" hidden></div>
+          <div class="row">
+            <label class="btn file">Importer un résultat (resultat.json)…<input type="file" id="loadResult" accept=".json"></label>
+          </div>
+          <div id="cloudStatus" class="status"></div>
         </div>
-        <div class="row">
-          <button class="btn" id="showJava" type="button">Voir le Java</button>
-          <button class="btn" id="showBlk" type="button">Voir le .blk</button>
-          <button class="btn" id="copyCode" type="button">Copier</button>
+
+        <div class="card">
+          <h2>Code du robot</h2>
+          <ul id="startText" class="plain"></ul>
+          <div class="row">
+            <button class="btn primary" id="dlJava" type="button">⬇ AutoBiobuzzIA.java</button>
+            <button class="btn primary" id="dlBlk" type="button">⬇ AutoBiobuzzIA.blk</button>
+          </div>
+          <div class="row">
+            <button class="btn" id="showJava" type="button">Voir le Java</button>
+            <button class="btn" id="showBlk" type="button">Voir le .blk</button>
+            <button class="btn" id="copyCode" type="button">Copier</button>
+          </div>
+          <textarea id="codeView" spellcheck="false" readonly></textarea>
+          <p class="hint"><b>Java</b> : copiez le fichier dans <span class="mono">TeamCode/src/main/java/org/firstinspires/ftc/teamcode/</span>.
+            <b>Blockly</b> : sur la page Blocks du Robot Controller, « Upload Op Mode » et choisissez le .blk.</p>
         </div>
-        <textarea id="codeView" spellcheck="false" readonly></textarea>
-        <p class="hint"><b>Java</b> : copiez le fichier dans <span class="mono">TeamCode/src/main/java/org/firstinspires/ftc/teamcode/</span>.
-          <b>Blockly</b> : sur la page Blocks du Robot Controller, « Upload Op Mode » et choisissez le .blk.</p>
-      </div>
-    </section>
-    <!-- ===================== SESSIONS CLOUD ===================== -->
-    <section class="tabpane" id="tab-cloud">
+
+        <h2 class="pagetitle">☁ Sessions dans le cloud</h2>
       <div class="card" id="bestCard" hidden>
         <h2>🏆 Meilleur résultat</h2>
         <div id="bestSession"></div>
       </div>
       <div class="card">
         <h2>Nouvelle session dans le cloud</h2>
-        <p class="hint">L'IA s'entraîne sur un serveur GitHub avec le robot et le match réglés dans les onglets 1 et 2. Vous pouvez fermer l'appli et éteindre l'ordinateur.</p>
+        <p class="hint">L'IA s'entraîne sur un serveur GitHub avec le robot et le match de la page 1 (et votre plan comme point de départ). Vous pouvez fermer l'appli et éteindre l'ordinateur.</p>
         <div class="grid2">
           <label>Nom de la session <input id="sessName" type="text" placeholder="ex. robot v1 départ gauche"></label>
           <label>Durée (minutes, 340 max) <input id="sessMinutes" type="number" value="300" min="5" max="340" step="5"></label>
@@ -289,35 +321,9 @@
           <p class="hint">Le jeton reste uniquement dans ce navigateur, sur cet ordinateur. Ne le partagez pas.</p>
         </details>
       </div>
-    </section>
+      </section>
+    </div>
   </aside>
-
-  <section class="stage">
-    <div class="viewbar">
-      <div class="seg" role="tablist">
-        <button class="segbtn active" data-view="2d">Vue 2D</button>
-        <button class="segbtn" data-view="3d">Vue 3D</button>
-      </div>
-      <div class="player">
-        <button class="btn icon" id="playBtn" type="button" title="Rejouer le plan">▶</button>
-        <input type="range" id="timeSlider" min="0" max="30" step="0.05" value="0" aria-label="Temps">
-        <span class="mono" id="timeLabel">0.0 s</span>
-        <label class="check small" title="Tire chaque balle au hasard avec la précision du robot"><input type="checkbox" id="randomMatch"> match aléatoire</label>
-      </div>
-    </div>
-    <div class="views">
-      <canvas id="field2d" class="view active" aria-label="Terrain vu de dessus"></canvas>
-      <div id="field3d" class="view"></div>
-    </div>
-    <div class="legend">
-      <span><i class="sw pollen"></i>POLLEN</span>
-      <span><i class="sw nectar-r"></i>NECTAR rouge</span>
-      <span><i class="sw nectar-b"></i>NECTAR bleu</span>
-      <span><i class="sw zone"></i>LOADING ZONE / GARDEN</span>
-      <span><i class="sw forbid"></i>Côté adverse (interdit en AUTO)</span>
-      <span class="note" id="animNote">Animation : scénario où tous les tirs possibles entrent. Le score affiché est l'espérance.</span>
-    </div>
-  </section>
 </main>
 
 <div id="modal" class="modal" hidden>
@@ -345,6 +351,7 @@
 <script src="js/export_blockly.js"></script>
 <script src="js/render2d.js"></script>
 <script src="js/render3d.js"></script>
+<script src="js/plan_editor.js"></script>
 <script src="js/robot_import.js"></script>
 <script src="js/robot_preview.js"></script>
 <script src="js/cloud.js"></script>

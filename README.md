@@ -21,38 +21,60 @@ Le programme exporté ne dépend que de **3 variables à calibrer** :
 
 Rien à installer et pas besoin d'Internet : l'appli marche aussi hors ligne, au bord du terrain.
 
-## Utilisation en 4 onglets
+## Utilisation
 
-1. **Robot**
-   - Importez votre robot en 3D : **STL** (le plus rapide, quelques secondes), **STEP**
-     (`.step`/`.stp`) ou IGES. Un STL n'a pas d'unité : l'appli la devine (souvent des mm) et vous
-     pouvez la corriger avec le menu « Unité du fichier STL ». Pour un STEP, la lecture se fait en
-     arrière-plan, avec un bouton Annuler. Les petites pièces (vis, écrous…) sont retirées pour que
-     l'affichage reste fluide.
-   - Un aperçu 3D montre le robot, sa flèche **avant** (rouge) et le cube de départ de 18 in (jaune).
-     Si le robot est couché ou mal orienté, tournez-le avec les boutons **↻ à plat**,
-     **↻ avant-arrière** et **↻ côté**.
-   - La longueur, la largeur et la hauteur sont **mesurées sur le modèle** et mises à jour à chaque
-     rotation. L'appli vérifie que le robot tient dans le cube de 18 in (R102).
-   - Le robot apparaît avec son vrai modèle dans la vue 3D, et en silhouette vue de dessus dans la
-     vue 2D.
-   - Remplissez ensuite les caractéristiques : châssis mecanum ou tank, les 3 variables, le lanceur
-     (distance de tir, précision, cadence), l'intake, et les noms des moteurs de votre configuration.
-2. **Match**
-   - Choisissez l'alliance, le poids qui fait basculer la HIVE (8 POLLEN), le poids d'un NECTAR
-     (1,67 POLLEN : 3 NECTAR + 3 POLLEN font basculer) et le nombre de NECTAR déjà dans la CELL au
-     départ (3 selon le manuel TU04).
-   - **Placer le robot** : bougez la souris sur le terrain, le robot se colle au mur le plus proche.
-     **R/E** ou **Q** (ou les boutons ⟲ ⟳) le tournent, un clic le pose. Un départ interdit (G304)
-     s'affiche en orange avec la raison.
-   - Vous pouvez aussi dessiner une zone réservée à votre partenaire.
-3. **Entraîner** : lancez l'IA. La courbe montre le meilleur score espéré, génération après
-   génération. Le bouton ▶ rejoue le meilleur plan en 2D ou en 3D : les balles volent en arc
-   jusque dans la CELL, et la HIVE bascule quand elle est pleine. Les balles de la CELL tombent
-   alors au sol. Cochez **match aléatoire** pour voir un match où chaque tir réussit ou rate selon
-   la précision du robot.
-4. **Exporter** : téléchargez `AutoBiobuzzIA.java` ou `AutoBiobuzzIA.blk`. L'onglet affiche aussi où
-   placer le robot au départ.
+L'écran est en deux parties : **le terrain en grand** à gauche, **une barre à 3 pages** à droite
+(on passe d'une page à l'autre en glissant, comme les photos d'un post, ou avec les points en haut).
+
+### Le terrain et l'île d'outils
+
+- Bouton **2D / 3D** en bas à gauche, lecture ▶ en bas (cochez **aléatoire** pour un match où chaque
+  tir réussit ou rate selon la précision du robot).
+- En haut, l'**île** (pilule noire) contient les outils. Elle s'agrandit pour montrer les options de
+  l'outil choisi, et affiche le score espéré, les bascules, la durée et les fautes.
+
+| Outil | Ce qu'il fait |
+|---|---|
+| ✋ Choisir (V) | sélectionner, déplacer un point, une zone (et ses coins) ou le départ. Le **losange au milieu d'une flèche** se tire pour la **courber**. |
+| ➜ Flèche (A) | ajoute un point de passage. |
+| ◎ Tir (T) | ajoute un tir ; la pastille montre le **nombre de balles** (×1 à ×4 ou « tout ») et la précision depuis ce point (vert / orange / rouge, ✗ = impossible d'ici). |
+| ⬚ Ramasser (P) | clic sur une FLOWER ou sur le GARDEN. |
+| ▭ Zone (Z) | glisser pour dessiner une zone de couleur : **zone de tir** (l'IA choisit le point de tir dedans), **zone de passage**, **zone interdite** (partenaire). |
+| 🅿 Park | clic dans la LOADING ZONE. |
+| 🤖 Départ (D) | le robot se colle au mur ; **R / Q** pour le tourner. |
+| 🧭 Orbite (3D) | comme en CAO : glisser = tourner, clic droit ou Maj = déplacer, molette = zoom, vues Dessus / Face / Côté / Iso. |
+
+↶ ↷ annulent / rétablissent (Ctrl+Z / Ctrl+Y), 🗑 ou Suppr effacent la sélection.
+
+En bas à gauche, **📋 Mon plan** liste les étapes avec leur temps : on peut les monter / descendre,
+les supprimer, ou les **verrouiller 🔒** pour que l'IA n'y touche pas. Le plan est gardé dans le
+navigateur, et s'exporte / s'importe en `.json`. « Plan de l'équipe » remplit la stratégie
+préchargées → FLOWER 1 → FLOWER 2 → GARDEN → PARK.
+
+### Page 1 : Robot
+
+- Importez votre robot en 3D : **STL** (le plus rapide, quelques secondes), **STEP**
+  (`.step`/`.stp`) ou IGES. Un STL n'a pas d'unité : l'appli la devine (souvent des mm) et vous
+  pouvez la corriger. Si le robot est couché ou mal orienté, tournez-le avec **↻ à plat**,
+  **↻ avant-arrière** et **↻ côté**. Les dimensions sont mesurées sur le modèle (cube de 18 in, R102).
+- Caractéristiques : châssis mecanum ou tank, les 3 variables, le lanceur (distance de tir,
+  précision, cadence), l'intake, les noms des moteurs.
+- Match : alliance, poids qui fait basculer la HIVE (8 POLLEN), poids d'un NECTAR (1,67 POLLEN :
+  3 NECTAR + 3 POLLEN font basculer), NECTAR au départ (3), marge, PARK.
+
+### Page 2 : Chat IA
+
+Discussion avec Claude, qui peut proposer des changements du plan et des réglages.
+
+### Page 3 : Optimiser, code, sessions
+
+- **Optimiser mon plan** : l'IA part de votre dessin et essaie des milliers de variantes (points de
+  tir dans leurs zones, courbes, points de passage, nombre de balles, départ si non verrouillé).
+  Avec « Garder l'ordre de mes étapes », elle ne change ni l'ordre ni les étapes 🔒. Le terrain montre
+  l'**aperçu** de l'IA : **Garder ce plan** ou **Revenir à mon plan**.
+- **Code du robot** : `AutoBiobuzzIA.java` ou `AutoBiobuzzIA.blk` du plan affiché, et où placer le
+  robot au départ.
+- **Sessions dans le cloud** : voir plus bas.
 
 ### Fichiers Inventor (.ipt / .iam)
 
@@ -65,7 +87,7 @@ Avec Onshape ou Fusion 360, faites clic droit puis Exporter > STEP.
 
 ## Sessions dans le cloud (ordinateur éteint)
 
-L'onglet **☁ Sessions** de l'appli lance des entraînements sur un serveur GitHub gratuit, pendant que
+La page **Optimiser** (☁ Sessions) de l'appli lance des entraînements sur un serveur GitHub gratuit, pendant que
 l'ordinateur est éteint. Il affiche aussi vos sessions (en cours, terminées) et le **meilleur
 résultat**, à charger et rejouer, ou à télécharger directement en `.java` / `.blk`.
 
@@ -74,13 +96,13 @@ https://github.com/settings/personal-access-tokens/new :
 
 1. Repository access : **Only select repositories**, puis le dépôt `machine-learning-ftc`.
 2. Permissions : **Actions = Read and write** et **Contents = Read and write**.
-3. **Generate token**, puis collez le jeton dans l'onglet **☁ Sessions** et cliquez **Se connecter**.
+3. **Generate token**, puis collez le jeton dans la page **Optimiser** (☁ Sessions) et cliquez **Se connecter**.
 
 Le jeton reste uniquement dans ce navigateur.
 
 **Ensuite, à chaque fois :**
 
-1. Réglez le robot et le match (onglets 1 et 2).
+1. Réglez le robot et le match (page 1) et dessinez votre plan : la session part de votre plan.
 2. Dans **☁ Sessions**, donnez un nom et une durée (340 min max), puis cliquez **☁ Lancer la session**.
 3. Éteignez l'ordinateur si vous voulez. Au retour, rouvrez l'appli : les sessions et le meilleur
    résultat s'affichent tout seuls. Les sessions en cours enregistrent un point d'étape toutes les

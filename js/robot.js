@@ -65,7 +65,8 @@
       v: 3,
       nectarDepart: 3, // NECTAR déjà dans la CELL du haut au départ (manuel TU04 : 3)
       prechargees: 4,
-      zonePartenaire: null, // {x0,y0,x1,y1} en pouces (repère rouge) que l'IA doit éviter
+      zonePartenaire: null, // (ancien) {x0,y0,x1,y1} en pouces (repère rouge) que l'IA doit éviter
+      zones: [], // zones dessinées : {id, kind: 'tir'|'interdite'|'passage', color, x0,y0,x1,y1} (repère rouge)
       departImpose: null, // {x, y, h} en pouces / radians (repère rouge)
       viserPark: true,
     };

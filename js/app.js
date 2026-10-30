@@ -1,12 +1,15 @@
-// Interface : formulaire robot, contraintes du match, entraînement, rejeu, export.
+// Interface : terrain en grand + île d'outils (dessin du plan), barre de droite à 3 pages
+// (robot & match, chat IA, optimiser / sessions / code).
 (function () {
   'use strict';
   const BZ = window.BZ;
   const G = BZ.G;
   const $ = (id) => document.getElementById(id);
+  const clone = (o) => JSON.parse(JSON.stringify(o));
 
   // ---------------- État ----------------
   const LS_KEY = 'biobuzz-auto-ia-v1';
+  const PLAN_KEY = 'biobuzz-plan-v1';
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) { saved = null; }
   const merge = (def, obj) => {
@@ -24,22 +27,37 @@
   if (saved && saved.game && !saved.game.v) { if (game.seuilBascule === 6) game.seuilBascule = 8; game.v = 2; }
   // v3 : les NECTAR pèsent plus lourd (poidsNectar) ; le seuil est un poids en POLLEN
   if (saved && saved.game && (saved.game.v || 0) < 3) { game.poidsNectar = BZ.defaultGame().poidsNectar; game.v = 3; }
+  if (!Array.isArray(game.zones)) game.zones = [];
+  // v11 : la zone partenaire devient une zone « interdite » dessinée sur le terrain
+  if (game.zonePartenaire) {
+    game.zones.push(Object.assign({ id: 'zpart', kind: 'interdite', color: '#7a3cff' }, game.zonePartenaire));
+    game.zonePartenaire = null;
+  }
+  const legacyStart = game.departImpose;
+  game.departImpose = null; // le départ appartient maintenant au plan (verrouillable)
 
+  let myPlan = null; // plan dessiné par l'équipe
+  try { myPlan = JSON.parse(localStorage.getItem(PLAN_KEY) || 'null'); } catch (e) { myPlan = null; }
   let opt = null; // Optimizer courant
-  let best = null; // meilleur résultat
+  let best = null; // résultat simulé du plan affiché
+  let aiPreview = null; // {result, plan} : meilleur plan de l'IA en aperçu (avant « Garder »)
   let training = false;
   let playing = false;
   let tNow = 0;
   let robotModel = null; // modèle 3D importé {name, meshes, rot}
   let robotTop = null; // silhouette vue de dessus (vue 2D)
-  let startHeadingDeg = 0; // orientation pendant le placement du départ
   let codeShown = 'java';
+  let is3d = false;
 
   const persist = () => {
     try { localStorage.setItem(LS_KEY, JSON.stringify({ robot, game })); } catch (e) { /* pas de stockage */ }
   };
+  const persistPlan = () => {
+    try { localStorage.setItem(PLAN_KEY, JSON.stringify(myPlan)); } catch (e) { /* pas de stockage */ }
+  };
 
   const view2d = new BZ.Field2D($('field2d'));
+  view2d.insets = { top: 64, bottom: 62 };
   const view3d = new BZ.Field3D($('field3d'));
 
   // ---------------- Formulaires ----------------
@@ -91,63 +109,111 @@
     .filter(([k]) => /^G/.test(k))
     .map(([k, r]) => `<li><b>${k}</b> – ${r.titre}. <span class="hint">${r.texte}</span></li>`).join('');
 
-  // ---------------- Onglets ----------------
-  document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === b));
-    document.querySelectorAll('.tabpane').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + b.dataset.tab));
-    if (b.dataset.tab === 'export') refreshExport();
-  }));
+  // ---------------- Barre de droite : 3 pages qu'on fait glisser ----------------
+  const pager = $('pager');
+  const PAGE_KEY = 'biobuzz-page';
+  let pageIdx = 0;
+  function goPage(i, instant) {
+    pageIdx = Math.max(0, Math.min(2, i));
+    pager.scrollTo({ left: pageIdx * pager.clientWidth, behavior: instant ? 'auto' : 'smooth' });
+    markPage();
+  }
+  function markPage() {
+    document.querySelectorAll('.pdot').forEach((d) => d.classList.toggle('active', +d.dataset.page === pageIdx));
+    try { localStorage.setItem(PAGE_KEY, String(pageIdx)); } catch (e) { /* rien */ }
+    if (pageIdx === 2) refreshExport();
+  }
+  let pageRaf = 0;
+  pager.addEventListener('scroll', () => {
+    cancelAnimationFrame(pageRaf);
+    pageRaf = requestAnimationFrame(() => {
+      const i = Math.round(pager.scrollLeft / Math.max(1, pager.clientWidth));
+      if (i !== pageIdx) { pageIdx = i; markPage(); }
+    });
+  });
+  document.querySelectorAll('.pdot').forEach((d) => d.addEventListener('click', () => goPage(+d.dataset.page)));
+  $('pagePrev').addEventListener('click', () => goPage(pageIdx - 1));
+  $('pageNext').addEventListener('click', () => goPage(pageIdx + 1));
+  new ResizeObserver(() => pager.scrollTo({ left: pageIdx * pager.clientWidth })).observe(pager);
+
+  // ---------------- 2D / 3D ----------------
   document.querySelectorAll('.segbtn').forEach((b) => b.addEventListener('click', () => {
     document.querySelectorAll('.segbtn').forEach((x) => x.classList.toggle('active', x === b));
-    const is3d = b.dataset.view === '3d';
+    is3d = b.dataset.view === '3d';
+    $('stage').classList.toggle('is3d', is3d);
     $('field2d').classList.toggle('active', !is3d);
     $('field3d').classList.toggle('active', is3d);
-    if (is3d) { view3d.init(); view3d.resize(); pushState(); }
+    if (is3d) { view3d.init(); view3d.resize(); }
+    else if (editor.tool === 'orbit') setTool('select');
+    pushState();
   }));
 
-  // ---------------- Monde & optimiseur ----------------
-  function makeOptimizer() {
-    try {
-      opt = new BZ.Optimizer(window.FIELD, robot, game, { seed: (Date.now() & 0xffff) + 1 });
-      return true;
-    } catch (e) {
-      opt = null;
-      modal('Impossible de lancer l\'IA', `<p>${e.message}</p>`);
-      return false;
+  // ---------------- Monde, simulation ----------------
+  let ctx = null; // {world, planner, sim} pour les réglages actuels
+  function simCtx() {
+    if (!ctx) {
+      const rd = BZ.robotDerived(robot);
+      const world = BZ.buildWorld(window.FIELD, game, rd);
+      const planner = new BZ.Planner(world, 2);
+      ctx = { world, planner, sim: new BZ.Sim(world, planner, robot, game) };
     }
+    return ctx;
+  }
+  const worldNow = () => simCtx().world;
+  function simulate(plan) {
+    if (!plan || !plan.start) return null;
+    try { return simCtx().sim.run(plan); } catch (e) { console.error(e); return null; }
+  }
+
+  // Pose de départ par défaut : un départ légal, robot face au terrain.
+  function defaultStart(world) {
+    const starts = BZ.legalStarts(world, 6);
+    return starts.find((s) => Math.abs(s.h) < 1e-6) || starts[0] || { x: -60, y: -40, h: 0 };
+  }
+
+  // Plan de l'équipe (préchargées -> FLOWER 1 -> FLOWER 2 -> GARDEN -> PARK), avec un départ fixé.
+  function teamPlan() {
+    const o = new BZ.Optimizer(window.FIELD, robot, game, { seed: (Date.now() & 0xffff) + 1, popSize: 4 });
+    let bestG = null;
+    for (let k = 0; k < 40; k++) { const g = o.teamPlan(); o.evaluate(g); if (!bestG || g.result.fitness > bestG.result.fitness) bestG = g; }
+    const p = o.toPlan(bestG);
+    // robot trop lent pour tout faire en 30 s : on retire les dernières étapes (ramasser + tirer)
+    let r = bestG.result;
+    while (r.endT > game.dureeAuto && p.actions.length > 2) {
+      p.actions = p.actions.slice(0, -2);
+      r = o.sim.run(p);
+    }
+    return { start: p.start, startLock: false, actions: p.actions, park: p.park };
+  }
+
+  function ensurePlan() {
+    const w = worldNow();
+    if (!myPlan || !myPlan.start || !Array.isArray(myPlan.actions)) {
+      try { myPlan = teamPlan(); } catch (e) { myPlan = { start: defaultStart(w), startLock: false, actions: [], park: { on: true, t: 0.5 } }; }
+    }
+    if (legacyStart) { myPlan.start = legacyStart; myPlan.startLock = true; }
+    if (!myPlan.park) myPlan.park = { on: false, t: 0.5 };
+    persistPlan();
+  }
+
+  // Recalcule le résultat du plan affiché.
+  function resim() {
+    best = aiPreview ? aiPreview.result : simulate(myPlan);
   }
 
   function invalidate() {
-    // les paramètres ont changé : le meilleur plan doit être recalculé
-    currentWorld = null;
+    // les réglages ont changé : nouveau monde, l'IA repart de zéro, on rejoue le plan
+    ctx = null;
     stopTraining();
     opt = null;
-    if (best) {
-      // on rejoue l'ancien plan avec les nouveaux paramètres pour garder un affichage cohérent
-      try {
-        const o = new BZ.Optimizer(window.FIELD, robot, game, { seed: 1, popSize: 2 });
-        const plan = Object.assign({}, best.plan);
-        if (game.departImpose) plan.start = game.departImpose;
-        best = o.sim.run(plan);
-        opt = null;
-        currentWorld = o.world;
-      } catch (e) { best = null; }
-    }
+    aiPreview = null;
     $('genCount').textContent = '0';
     $('evalCount').textContent = '0';
+    resim();
     pushState();
   }
 
-  let currentWorld = null;
-  function worldNow() {
-    if (opt) return opt.world;
-    if (!currentWorld || currentWorld.rd.hl !== BZ.robotDerived(robot).hl) {
-      currentWorld = BZ.buildWorld(window.FIELD, game, BZ.robotDerived(robot));
-    }
-    return currentWorld;
-  }
-
-  // Déroulé des tirs pour l'animation (nominal, ou tiré au hasard si « match aléatoire »).
+  // Déroulé des tirs pour l'animation (nominal, ou tiré au hasard si « aléatoire »).
   let randomSeed = 1;
   function outcomesFor(result, world) {
     if (!result) return null;
@@ -155,23 +221,20 @@
     return BZ.shotOutcomes(result, world, robot, game, rng);
   }
 
-  // Pose affichée quand il n'y a pas encore de plan : départ imposé, sinon un départ légal.
-  function idlePose(world) {
-    if (game.departImpose) return game.departImpose;
-    const starts = BZ.legalStarts(world, 6);
-    return starts.find((s) => Math.abs(s.h) < 1e-6) || starts[0] || null;
-  }
-
-  function pushState(extra) {
+  function pushState() {
     const world = worldNow();
-    const st = Object.assign({
+    const shown = aiPreview ? aiPreview.plan : myPlan;
+    const st = {
       alliance: game.alliance, robot, game, rd: BZ.robotDerived(robot), world, result: best,
-      outcomes: outcomesFor(best, world), idlePose: best ? null : idlePose(world), robotTop,
-    }, extra || {});
+      outcomes: outcomesFor(best, world), idlePose: best ? null : (myPlan && myPlan.start), robotTop,
+      overlay: editor.overlay(shown),
+    };
     view2d.setState(st);
     if (view3d.ready) view3d.setState(st);
     updateKpis();
     renderSteps();
+    renderIsland();
+    renderAiBar();
   }
 
   function updateKpis() {
@@ -180,60 +243,298 @@
     $('kpiTips').textContent = r ? `${r.eTips.toFixed(2)} (max ${r.nominalTips})` : '–';
     $('kpiTime').textContent = r ? r.endT.toFixed(1) + ' s' : '–';
     const nf = r ? r.faults.length : null;
-    $('kpiFaults').textContent = r ? (nf ? nf : 'aucune') : '–';
-    $('kpiFaults').className = 'kpi-value ' + (r ? (nf ? 'bad' : 'good') : '');
-    $('bestScore').textContent = r ? r.expected.toFixed(1) : '–';
+    $('kpiFaults').textContent = r ? (nf ? nf : '0') : '–';
+    $('kpiFaults').className = r ? (nf ? 'bad' : 'good') : '';
+    $('kpiTime').className = r && r.endT > game.dureeAuto ? 'bad' : '';
+    $('bestScore').textContent = opt && opt.best ? opt.best.result.expected.toFixed(1) : '–';
   }
 
-  function renderSteps() {
-    const ol = $('planSteps');
-    if (!best) { ol.innerHTML = '<li class="hint">Lancez l\'entraînement pour obtenir un plan.</li>'; $('faultList').innerHTML = ''; return; }
-    const items = [];
-    let lastLabel = null;
-    for (const p of best.prims) {
-      if (!p.label || p.label === lastLabel) continue;
-      lastLabel = p.label;
-      const now = tNow >= p.t0 && tNow < p.t1 ? ' class="now"' : '';
-      items.push(`<li${now}><span class="t">${p.t0.toFixed(1)} s</span>${p.label}</li>`);
-    }
-    items.push(`<li><span class="t">${best.endT.toFixed(1)} s</span>Fin · LEAVE ${best.leave ? '✓' : '✗'} · PARK ${best.park ? '✓' : '✗'}</li>`);
-    if (best.tipsAtLeast) {
-      const ch = [1, 2, 3].filter((k) => k <= Math.max(1, best.nominalTips)).map((k) => `${k} bascule${k > 1 ? 's' : ''} ou plus : <b>${Math.round(best.tipsAtLeast[k] * 100)} %</b>`);
-      items.push(`<li class="chances">Chances (avec la précision du lanceur) : ${ch.join(' · ')}</li>`);
-    }
-    ol.innerHTML = items.join('');
-    $('faultList').innerHTML = best.faults.length
-      ? best.faults.map((f) => `<p>⚠ <b>${f.rule}</b> ${(BZ.RULES[f.rule] || {}).titre || ''} ${f.info ? '(' + f.info + ')' : ''} à ${f.t.toFixed(1)} s</p>`).join('')
-      : '<p class="ok">✓ Aucune faute : le plan respecte les règles vérifiées.</p>';
+  // ---------------- Éditeur de plan ----------------
+  const toastEl = document.createElement('div');
+  toastEl.className = 'toast'; toastEl.hidden = true;
+  $('stage').appendChild(toastEl);
+  let toastTimer = null;
+  function toast(msg) {
+    toastEl.textContent = msg; toastEl.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toastEl.hidden = true; }, 3200);
   }
+
+  // Colle le robot au mur le plus proche de notre côté, avec l'orientation choisie.
+  function snapStart(x, y, deg) {
+    const w = worldNow(), rd = w.rd, half = w.half;
+    const h = G.rad(deg);
+    const ex = Math.abs(Math.cos(h)) > 0.5 ? rd.hl : rd.hw, ey = Math.abs(Math.cos(h)) > 0.5 ? rd.hw : rd.hl;
+    const dl = x + half, db = y + half, dt = half - y;
+    const m = Math.min(dl, db, dt);
+    if (m === dl) x = -half + ex; else if (m === db) y = -half + ey; else y = half - ey;
+    x = Math.max(-half + ex, Math.min(-ex, x));
+    y = Math.max(-half + ey, Math.min(half - ey, y));
+    const s = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, h: G.wrap(h) };
+    return { pose: s, errs: BZ.checkStart(w, s) };
+  }
+
+  let lastZonesKey = JSON.stringify(game.zones);
+  const editor = new BZ.PlanEditor({
+    world: worldNow,
+    robot: () => robot,
+    game: () => game,
+    plan: () => myPlan,
+    snapStart,
+    toast,
+    setTool: (t) => setTool(t),
+    // Applique une modification du plan (et des zones) ; transient = pendant un glisser.
+    apply(plan, zones, o) {
+      myPlan = plan;
+      game.zones = zones;
+      const zk = JSON.stringify(zones.map((z) => (z.kind === 'interdite' ? [z.x0, z.y0, z.x1, z.y1] : z.id)));
+      if (zk !== lastZonesKey) { lastZonesKey = zk; ctx = null; }
+      if (!o.transient) { persistPlan(); persist(); opt = null; stopTraining(); }
+      resim();
+      pushState();
+    },
+    changed(light) { if (light) { const st = view2d.state; if (st) { st.overlay = editor.overlay(aiPreview ? aiPreview.plan : myPlan); view2d.draw(); if (view3d.ready) view3d.setState(st); } } else pushState(); },
+  });
+
+  function setTool(t) {
+    if (t === 'orbit' && !is3d) t = 'select';
+    editor.setTool(t);
+    document.querySelectorAll('.tool[data-tool]').forEach((b) => b.classList.toggle('active', b.dataset.tool === t));
+    renderIsland();
+  }
+  document.querySelectorAll('.tool[data-tool]').forEach((b) => b.addEventListener('click', () => setTool(b.dataset.tool)));
+  $('undoBtn').addEventListener('click', () => editor.undo());
+  $('redoBtn').addEventListener('click', () => editor.redo());
+  $('delBtn').addEventListener('click', () => editor.deleteSel());
+
+  const onPointer = (kind, x, y, r, e) => {
+    if (aiPreview) { if (kind === 'down') toast('Aperçu de l\'IA : gardez-le ou revenez à votre plan avant de modifier.'); return false; }
+    return editor.pointer(kind, x, y, r, e);
+  };
+  view2d.onPointer = onPointer;
+  view3d.onPointer = onPointer;
+  view2d.onPointerCursor = view3d.onPointerCursor = () => (editor.tool === 'select' ? 'pointer' : 'crosshair');
+  document.addEventListener('keydown', (e) => {
+    if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    if (aiPreview) return;
+    if (editor.key(e)) e.preventDefault();
+  });
+
+  // Options de l'île selon l'outil / la sélection.
+  const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const chip = (act, label, on, extra) => `<button class="chip${on ? ' on' : ''}${extra ? ' ' + extra : ''}" type="button" data-act="${act}">${label}</button>`;
+  const nChips = (cur) => [0, 1, 2, 3, 4].map((n) => chip('n:' + n, n ? '×' + n : 'toutes', (cur || 0) === n)).join('');
+  const kindChips = (cur) => Object.entries(BZ.ZONE_KINDS).map(([k, v]) => chip('kind:' + k, v.nom.replace('Zone ', ''), cur === k)).join('');
+  const swatches = (cur) => BZ.ZONE_COLORS.map((c) => `<button class="swatch${c === cur ? ' on' : ''}" type="button" data-act="color:${c}" style="background:${c}" aria-label="couleur ${c}"></button>`).join('');
+  const srcName = (src) => (src === 'jardin' ? 'GARDEN' : (worldNow().flowers.find((f) => f.id === src) || {}).nom || src);
+
+  function renderIsland() {
+    const t = editor.tool, sel = editor.sel;
+    let h = '';
+    if (aiPreview) h = '';
+    else if (t === 'tir') h = `<span class="lbl">Balles par tir</span>${nChips(editor.tirN)}<span class="lbl">Cliquez où le robot s'arrête pour tirer.</span>`;
+    else if (t === 'via') h = '<span class="lbl">Cliquez pour ajouter un point de passage. Avec ✋, tirez le losange au milieu d\'une flèche pour la courber.</span>';
+    else if (t === 'ramasse') h = '<span class="lbl">Cliquez sur une FLOWER ou sur le GARDEN de votre côté.</span>';
+    else if (t === 'park') h = `<span class="lbl">Cliquez dans la LOADING ZONE.</span>${chip('park:off', 'Pas de PARK', !(myPlan.park && myPlan.park.on))}`;
+    else if (t === 'zone') h = `<span class="lbl">Type</span>${kindChips(editor.zoneKind)}<span class="lbl">Couleur</span>${swatches(editor.zoneColor)}<span class="lbl">${esc(BZ.ZONE_KINDS[editor.zoneKind].aide)} · glissez sur le terrain.</span>`;
+    else if (t === 'start') h = `${chip('rot:90', '⟲ 90°')}${chip('rot:-90', '⟳ 90°')}${chip('start:free', 'Laisser l\'IA choisir', !myPlan.startLock)}<span class="lbl">Bougez la souris : le robot se colle au mur. R / Q pour tourner.</span>`;
+    else if (t === 'orbit') h = `${chip('view:top', 'Dessus')}${chip('view:front', 'Face')}${chip('view:side', 'Côté')}${chip('view:iso', 'Iso')}<span class="lbl">Glisser = tourner · clic droit ou Maj = déplacer · molette = zoom</span>`;
+    else if (sel) {
+      if (sel.type === 'node' && sel.i === 'park') h = `<span class="lbl">PARK</span>${chip('lock', myPlan.park.lock ? '🔒 Verrouillé' : '🔓 Libre', myPlan.park.lock)}${myPlan.park.ctrl ? chip('straight', 'Redresser la flèche') : ''}${chip('del', 'Retirer le PARK', false, 'danger')}`;
+      else if (sel.type === 'node') {
+        const a = myPlan.actions[sel.i];
+        if (a) {
+          const zs = game.zones.filter((z) => z.kind === (a.type === 'tir' ? 'tir' : 'passage'));
+          const zsel = a.type !== 'ramasse' && zs.length ? `<span class="lbl">Zone</span><select data-act="zone"><option value="">aucune</option>${zs.map((z, k) => `<option value="${z.id}"${a.zone === z.id ? ' selected' : ''}>${esc(BZ.ZONE_KINDS[z.kind].nom)} ${k + 1}</option>`).join('')}</select>` : '';
+          h = `<span class="lbl">Étape ${sel.i + 1}</span>`;
+          if (a.type === 'tir') h += nChips(a.n);
+          if (a.type === 'ramasse') h += ['fleur0', 'fleur1', 'jardin'].map((s2) => chip('src:' + s2, srcName(s2), a.src === s2)).join('');
+          h += zsel + chip('lock', a.lock ? '🔒 Verrouillée' : '🔓 Libre', !!a.lock) + (a.ctrl ? chip('straight', 'Redresser') : '') + chip('del', 'Supprimer', false, 'danger');
+        }
+      } else if (sel.type === 'ctrl') h = `${chip('straight', 'Redresser la flèche')}<span class="lbl">Glissez le losange pour courber.</span>`;
+      else if (sel.type === 'zone') {
+        const z = game.zones.find((q) => q.id === sel.id);
+        if (z) h = `<span class="lbl">Zone</span>${kindChips(z.kind)}${swatches(z.color)}${chip('del', 'Supprimer', false, 'danger')}`;
+      } else if (sel.type === 'start') h = `<span class="lbl">Départ</span>${chip('rot:90', '⟲ 90°')}${chip('rot:-90', '⟳ 90°')}${chip('start:free', myPlan.startLock ? '🔒 Fixé (libérer)' : '🔓 Choisi par l\'IA', !!myPlan.startLock)}`;
+    }
+    $('islOpts').innerHTML = h ? `<div><div class="opts">${h}</div></div>` : '<div></div>';
+    $('island').classList.toggle('open', !!h);
+    $('undoBtn').disabled = !editor.undoStack.length;
+    $('redoBtn').disabled = !editor.redoStack.length;
+    $('delBtn').disabled = !sel;
+  }
+
+  function islandAction(act, value) {
+    const sel = editor.sel;
+    const [k, v] = act.split(':');
+    if (k === 'view') { view3d.setView(v); return; }
+    if (k === 'rot') { editor.rotateStart(+v); return; }
+    if (editor.tool === 'tir' && k === 'n') { editor.tirN = +v; renderIsland(); return; }
+    if (editor.tool === 'zone' && k === 'kind') { editor.zoneKind = v; renderIsland(); return; }
+    if (editor.tool === 'zone' && k === 'color') { editor.zoneColor = act.slice(6); renderIsland(); return; }
+    if (k === 'park' && v === 'off') { editor.commit((p) => { p.park = Object.assign({}, p.park, { on: !(p.park && p.park.on) }); }); return; }
+    if (k === 'start') { editor.commit((p) => { p.startLock = !p.startLock; }); return; }
+    if (k === 'del') { editor.deleteSel(); return; }
+    if (!sel) return;
+    editor.commit((p, zones) => {
+      const target = sel.type === 'node' || sel.type === 'ctrl' ? (sel.i === 'park' ? p.park : p.actions[sel.i]) : null;
+      if (k === 'n' && target) { if (+v) target.n = +v; else delete target.n; }
+      else if (k === 'lock' && target) target.lock = !target.lock;
+      else if (k === 'straight' && target) delete target.ctrl;
+      else if (k === 'src' && target) target.src = v;
+      else if (k === 'zone' && target) { if (value) target.zone = value; else delete target.zone; }
+      else if (sel.type === 'zone') {
+        const z = zones.find((q) => q.id === sel.id);
+        if (!z) return false;
+        if (k === 'kind') { z.kind = v; for (const a of p.actions) if (a.zone === z.id && !((v === 'tir' && a.type === 'tir') || (v === 'passage' && a.type === 'via'))) delete a.zone; }
+        else if (k === 'color') z.color = act.slice(6);
+        else return false;
+      } else return false;
+    });
+  }
+  $('islOpts').addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (b && b.tagName !== 'SELECT') islandAction(b.dataset.act); });
+  $('islOpts').addEventListener('change', (e) => { const s2 = e.target.closest('select[data-act]'); if (s2) islandAction(s2.dataset.act, s2.value); });
+
+  // ---------------- Liste des étapes ----------------
+  const ICON = { tir: '◎', via: '➜', ramasse: '⬚', park: '🅿' };
+  function stepText(a) {
+    if (a.type === 'tir') return `Tir ${a.n ? '×' + a.n : '(toutes)'}` + (a.zone ? ' · zone' : '');
+    if (a.type === 'via') return a.auto ? 'Passage (IA)' : 'Point de passage';
+    if (a.type === 'ramasse') return 'Ramasser · ' + srcName(a.src);
+    return a.type;
+  }
+  function renderSteps() {
+    const plan = aiPreview ? aiPreview.plan : myPlan;
+    const r = best;
+    const items = [];
+    const sel = editor.sel || {};
+    (plan.actions || []).forEach((a, i) => {
+      const s = r && r.steps ? r.steps[i] : null;
+      const cls = [sel.type === 'node' && sel.i === i ? 'sel' : '', s && !s.done ? 'skip' : '', s && tNow >= s.t0 && tNow < s.t1 ? 'now' : ''].filter(Boolean).join(' ');
+      const tt = s ? (s.done ? `${s.t0.toFixed(1)}–${s.t1.toFixed(1)} s` : 'sautée') : '';
+      items.push(`<li class="${cls}" data-i="${i}"><span class="pi">${ICON[a.type] || '•'}</span><span class="ptxt">${i + 1}. ${esc(stepText(a))} ${a.lock ? '🔒' : ''}<br><span class="pt">${tt}</span></span>` +
+        (aiPreview ? '' : `<button class="pb" data-act="up" title="Monter">↑</button><button class="pb" data-act="down" title="Descendre">↓</button><button class="pb" data-act="lock" title="Verrouiller pour l'IA">${a.lock ? '🔒' : '🔓'}</button><button class="pb" data-act="del" title="Supprimer">✕</button>`) + '</li>');
+    });
+    if (plan.park && plan.park.on) {
+      const ps = r && r.parkStep;
+      items.push(`<li class="${sel.i === 'park' ? 'sel' : ''}" data-i="park"><span class="pi">🅿</span><span class="ptxt">PARK (LOADING ZONE)<br><span class="pt">${ps ? ps.t0.toFixed(1) + '–' + ps.t1.toFixed(1) + ' s' : ''}</span></span></li>`);
+    }
+    if (!items.length) items.push('<li class="chances">Choisissez un outil dans l\'île en haut et dessinez votre AUTO sur le terrain.</li>');
+    if (r) {
+      items.push(`<li class="chances">Fin à ${r.endT.toFixed(1)} s · LEAVE ${r.leave ? '✓' : '✗'} · PARK ${r.park ? '✓' : '✗'}` +
+        (r.tipsAtLeast ? ' · ' + [1, 2, 3].filter((k) => k <= Math.max(1, r.nominalTips)).map((k) => `${k} bascule${k > 1 ? 's' : ''} : <b>${Math.round(r.tipsAtLeast[k] * 100)} %</b>`).join(' · ') : '') + '</li>');
+    }
+    $('planSteps').innerHTML = items.join('');
+    $('dockSummary').textContent = `${(plan.actions || []).length} étapes` + (r ? ` · ${r.expected.toFixed(1)} pts · ${r.endT.toFixed(1)} s` : '');
+    $('faultList').innerHTML = r && r.faults.length
+      ? r.faults.map((f) => `<p>⚠ <b>${f.rule}</b> ${(BZ.RULES[f.rule] || {}).titre || ''} ${f.info ? '(' + esc(f.info) + ')' : ''} à ${f.t.toFixed(1)} s</p>`).join('')
+      : (r ? '<p class="ok">✓ Aucune faute : le plan respecte les règles vérifiées.</p>' : '');
+  }
+  $('planSteps').addEventListener('click', (e) => {
+    const li = e.target.closest('li[data-i]');
+    if (!li) return;
+    const i = li.dataset.i === 'park' ? 'park' : +li.dataset.i;
+    const b = e.target.closest('[data-act]');
+    if (!b) { editor.sel = { type: 'node', i }; setTool('select'); pushState(); return; }
+    const act = b.dataset.act;
+    if (act === 'del') { editor.sel = { type: 'node', i }; editor.deleteSel(); return; }
+    editor.commit((p) => {
+      const A = p.actions;
+      if (act === 'up' && i > 0) { [A[i - 1], A[i]] = [A[i], A[i - 1]]; editor.sel = { type: 'node', i: i - 1 }; }
+      else if (act === 'down' && i < A.length - 1) { [A[i + 1], A[i]] = [A[i], A[i + 1]]; editor.sel = { type: 'node', i: i + 1 }; }
+      else if (act === 'lock') A[i].lock = !A[i].lock;
+      else return false;
+    });
+  });
+  $('dockToggle').addEventListener('click', () => $('dock').classList.toggle('collapsed'));
+  $('planTeam').addEventListener('click', () => {
+    if (aiPreview) return;
+    const t = teamPlan();
+    editor.commit((p) => { Object.assign(p, t, { start: p.startLock ? p.start : t.start, startLock: p.startLock }); });
+  });
+  $('planFromAI').addEventListener('click', () => {
+    if (aiPreview) { keepAi(); return; }
+    if (!opt || !opt.best) { goPage(2); toast('Lancez d\'abord l\'optimisation (page « Optimiser »).'); return; }
+    aiPreview = { result: opt.best.result, plan: planFromGenome(opt.best) }; keepAi();
+  });
+  $('planClear').addEventListener('click', () => { if (!aiPreview) editor.commit((p) => { p.actions = []; p.park = { on: false, t: 0.5 }; }); });
+  $('planSave').addEventListener('click', () => download('plan-auto.json', JSON.stringify({ version: 1, plan: myPlan, zones: game.zones }, null, 2), 'application/json'));
+  $('planLoad').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    try {
+      const d = JSON.parse(await f.text());
+      const plan = d.plan || d;
+      if (!plan.start || !Array.isArray(plan.actions)) throw new Error('pas de plan');
+      editor.commit((p, zones) => { Object.assign(p, plan); if (Array.isArray(d.zones)) { zones.length = 0; zones.push(...d.zones); } });
+    } catch (err) { modal('Plan invalide', '<p>Ce fichier n\'est pas un plan exporté par cette appli.</p>'); }
+  });
+
+  // ---------------- Optimisation (IA) ----------------
+  function planFromGenome(g) {
+    const p = opt.toPlan(g);
+    return clone({ start: p.start, startLock: !!myPlan.startLock, actions: p.actions, park: p.park });
+  }
+  function renderAiBar() {
+    const bar = $('aiBar');
+    if (!aiPreview) { bar.hidden = true; return; }
+    const mine = simulate(myPlan);
+    const r = aiPreview.result;
+    bar.hidden = false;
+    bar.innerHTML = `<span>🤖 <b>Aperçu de l'IA</b> : ${r.expected.toFixed(1)} pts · ${r.endT.toFixed(1)} s` +
+      (mine ? ` <span class="hint">(votre plan : ${mine.expected.toFixed(1)} pts · ${mine.endT.toFixed(1)} s)</span>` : '') + '</span>' +
+      '<button class="btn primary" type="button" id="aiKeep">Garder ce plan</button><button class="btn" type="button" id="aiDrop">Revenir à mon plan</button>';
+    $('aiKeep').onclick = keepAi;
+    $('aiDrop').onclick = dropAi;
+  }
+  function keepAi() {
+    if (!aiPreview) return;
+    const p = aiPreview.plan;
+    stopTraining();
+    aiPreview = null;
+    editor.commit((pl) => { Object.assign(pl, clone(p)); });
+  }
+  function dropAi() { stopTraining(); aiPreview = null; resim(); pushState(); }
+
+  function makeOptimizer() {
+    try {
+      opt = new BZ.Optimizer(window.FIELD, robot, game, { seed: (Date.now() & 0xffff) + 1, base: myPlan, keepOrder: $('keepOrder').checked });
+      return true;
+    } catch (e) {
+      opt = null;
+      modal('Impossible de lancer l\'IA', `<p>${esc(e.message)}</p>`);
+      return false;
+    }
+  }
+  $('keepOrder').addEventListener('change', () => { stopTraining(); opt = null; $('genCount').textContent = '0'; $('evalCount').textContent = '0'; drawChart(); stopTraining(); });
 
   // ---------------- Entraînement ----------------
   function drawChart() {
-    const c = $('chart'), ctx = c.getContext('2d');
+    const c = $('chart'), cx = c.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
     c.width = c.clientWidth * dpr; c.height = 140 * dpr;
-    ctx.clearRect(0, 0, c.width, c.height);
+    cx.clearRect(0, 0, c.width, c.height);
     if (!opt || !opt.history.length) return;
     const h = opt.history;
     const vals = h.map((x) => x.expected);
     const max = Math.max(10, ...vals) * 1.1;
     const pad = 24 * dpr;
-    ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--line'); ctx.lineWidth = 1;
-    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--ink-2');
-    ctx.font = `${10 * dpr}px system-ui`;
+    cx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--line'); cx.lineWidth = 1;
+    cx.fillStyle = getComputedStyle(document.body).getPropertyValue('--ink-2');
+    cx.font = `${10 * dpr}px system-ui`;
     for (let v = 0; v <= max; v += 20) {
       const y = c.height - pad / 2 - (v / max) * (c.height - pad);
-      ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(c.width, y); ctx.stroke();
-      ctx.fillText(String(v), 2, y + 3 * dpr);
+      cx.beginPath(); cx.moveTo(pad, y); cx.lineTo(c.width, y); cx.stroke();
+      cx.fillText(String(v), 2, y + 3 * dpr);
     }
-    ctx.strokeStyle = '#e0a100'; ctx.lineWidth = 2 * dpr;
-    ctx.beginPath();
+    cx.strokeStyle = '#e0a100'; cx.lineWidth = 2 * dpr;
+    cx.beginPath();
     vals.forEach((v, i) => {
       const x = pad + (i / Math.max(1, vals.length - 1)) * (c.width - pad - 4);
       const y = c.height - pad / 2 - (v / max) * (c.height - pad);
-      if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      if (i) cx.lineTo(x, y); else cx.moveTo(x, y);
     });
-    ctx.stroke();
+    cx.stroke();
   }
 
   function trainLoop() {
@@ -241,11 +542,11 @@
     const t0 = performance.now();
     const maxGen = parseInt($('maxGen').value, 10) || 300;
     while (performance.now() - t0 < 30 && opt.generation < maxGen) opt.step();
-    best = opt.bestResult();
+    aiPreview = { result: opt.best.result, plan: planFromGenome(opt.best) };
+    resim();
     $('genCount').textContent = String(opt.generation);
     $('evalCount').textContent = String(opt.evals);
     drawChart();
-    if (!playing) tNow = Math.min(tNow, 30);
     pushState();
     if (opt.generation >= maxGen) { stopTraining(); return; }
     requestAnimationFrame(trainLoop);
@@ -258,11 +559,11 @@
   }
   function stopTraining() {
     training = false;
-    $('trainBtn').textContent = opt && opt.generation ? '▶ Continuer' : '▶ Lancer l\'entraînement';
+    $('trainBtn').textContent = opt && opt.generation ? '▶ Continuer' : '▶ Optimiser mon plan';
   }
   $('trainBtn').addEventListener('click', () => (training ? stopTraining() : startTraining()));
   $('resetTrain').addEventListener('click', () => {
-    stopTraining(); opt = null; best = null;
+    stopTraining(); opt = null; aiPreview = null; resim();
     $('genCount').textContent = '0'; $('evalCount').textContent = '0';
     drawChart(); pushState(); stopTraining();
   });
@@ -295,81 +596,6 @@
       lastFrame = 0; requestAnimationFrame(playLoop);
     }
   });
-
-  // ---------------- Contraintes sur le terrain ----------------
-  function setMode(mode) {
-    view2d.mode = mode;
-    $('placeStart').classList.toggle('armed', mode === 'start');
-    $('drawPartner').classList.toggle('armed', mode === 'partner');
-    $('constraintStatus').textContent = mode === 'start' ? 'Bougez la souris sur le terrain : R/E ou Q pour tourner, clic pour poser.'
-      : mode === 'partner' ? 'Glissez sur le terrain pour dessiner la zone du partenaire.' : constraintText();
-    if (mode) document.querySelector('.segbtn[data-view="2d"]').click();
-    if (mode !== 'start') pushState();
-  }
-  function constraintText() {
-    const a = [];
-    a.push(game.departImpose ? 'Départ imposé par vous.' : 'Départ choisi par l\'IA.');
-    if (game.zonePartenaire) a.push('Zone partenaire définie.');
-    return a.join(' ');
-  }
-  $('placeStart').addEventListener('click', () => {
-    if (game.departImpose) startHeadingDeg = Math.round(G.deg(game.departImpose.h));
-    setMode(view2d.mode === 'start' ? null : 'start');
-  });
-  $('drawPartner').addEventListener('click', () => setMode(view2d.mode === 'partner' ? null : 'partner'));
-  $('clearStart').addEventListener('click', () => { game.departImpose = null; persist(); setMode(null); invalidate(); });
-  $('clearPartner').addEventListener('click', () => { game.zonePartenaire = null; persist(); setMode(null); invalidate(); });
-
-  // Colle le robot au mur le plus proche de notre côté, avec l'orientation choisie.
-  let lastHover = null;
-  function snapStart(x, y) {
-    const w = worldNow(), rd = w.rd, half = w.half;
-    const h = G.rad(startHeadingDeg);
-    const ex = Math.abs(Math.cos(h)) > 0.5 ? rd.hl : rd.hw, ey = Math.abs(Math.cos(h)) > 0.5 ? rd.hw : rd.hl;
-    const dl = x + half, db = y + half, dt = half - y;
-    const m = Math.min(dl, db, dt);
-    if (m === dl) x = -half + ex; else if (m === db) y = -half + ey; else y = half - ey;
-    x = Math.max(-half + ex, Math.min(-ex, x));
-    y = Math.max(-half + ey, Math.min(half - ey, y));
-    const s = { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, h: G.wrap(h) };
-    return { pose: s, errs: BZ.checkStart(w, s) };
-  }
-  function previewStart(x, y) {
-    lastHover = { x, y };
-    const r = snapStart(x, y);
-    $('constraintStatus').textContent = r.errs.length ? '✗ Départ interdit (G304) : ' + r.errs.join(' ; ') : '✓ Départ légal : cliquez pour le poser.';
-    pushState({ startPreview: { pose: r.pose, ok: !r.errs.length } });
-    return r;
-  }
-  function rotateStart(d) {
-    startHeadingDeg = ((startHeadingDeg + d) % 360 + 540) % 360 - 180;
-    if (view2d.mode === 'start' && lastHover) previewStart(lastHover.x, lastHover.y);
-    else if (game.departImpose) {
-      // départ déjà posé : on le tourne sur place (en le recollant au mur)
-      const r = snapStart(game.departImpose.x, game.departImpose.y);
-      if (!r.errs.length) { game.departImpose = r.pose; persist(); invalidate(); }
-      else $('constraintStatus').textContent = '✗ Impossible de tourner ici (G304) : ' + r.errs.join(' ; ');
-    }
-  }
-  $('rotLeft').addEventListener('click', () => rotateStart(90));
-  $('rotRight').addEventListener('click', () => rotateStart(-90));
-  document.addEventListener('keydown', (e) => {
-    if (view2d.mode !== 'start' || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
-    if (e.key === 'r' || e.key === 'R' || e.key === 'e' || e.key === 'E') { rotateStart(-90); e.preventDefault(); }
-    else if (e.key === 'q' || e.key === 'Q') { rotateStart(90); e.preventDefault(); }
-    else if (e.key === 'Escape') setMode(null);
-  });
-
-  view2d.onHover = (ev) => { if (view2d.mode === 'start') previewStart(ev.x, ev.y); };
-  view2d.onPick = (ev) => {
-    if (ev.type === 'partner') {
-      game.zonePartenaire = ev.zone; persist(); setMode(null); invalidate();
-      return;
-    }
-    const r = previewStart(ev.x, ev.y);
-    if (r.errs.length) return;
-    game.departImpose = r.pose; persist(); setMode(null); invalidate();
-  };
 
   // ---------------- Import 3D ----------------
   let busyTimer = null;
@@ -551,14 +777,14 @@
   function refreshExport() {
     const t = exportTexts();
     if (!t) {
-      $('startText').innerHTML = '<li class="hint">Entraînez d\'abord l\'IA (onglet 3).</li>';
+      $('startText').innerHTML = '<li class="hint">Dessinez d\'abord votre AUTO sur le terrain.</li>';
       $('codeView').value = '';
       return;
     }
     $('startText').innerHTML = t.startText.map((s) => `<li>${s}</li>`).join('');
     $('codeView').value = codeShown === 'java' ? t.java : t.blk;
   }
-  const needPlan = () => { if (!best) { modal('Pas encore de plan', '<p>Lancez l\'entraînement (onglet 3) pour que l\'IA trouve un AUTO.</p>'); return false; } return true; };
+  const needPlan = () => { if (!best) { modal('Pas encore de plan', '<p>Dessinez votre AUTO sur le terrain (ou optimisez-le avec l\'IA).</p>'); return false; } return true; };
   $('dlJava').addEventListener('click', () => { if (needPlan()) download('AutoBiobuzzIA.java', exportTexts().java, 'text/x-java'); });
   $('dlBlk').addEventListener('click', () => { if (needPlan()) download('AutoBiobuzzIA.blk', exportTexts().blk, 'application/xml'); });
   $('showJava').addEventListener('click', () => { codeShown = 'java'; refreshExport(); });
@@ -572,7 +798,7 @@
   // ---------------- Entraînement dans le cloud (GitHub Actions) ----------------
   $('dlCloudCfg').addEventListener('click', () => {
     const minutes = Math.max(5, Math.min(340, parseFloat($('sessMinutes').value) || 300));
-    download('config.json', JSON.stringify({ version: 1, minutes, nom: $('sessName').value || robot.nom, robot, game }, null, 2), 'application/json');
+    download('config.json', JSON.stringify({ version: 1, minutes, nom: $('sessName').value || robot.nom, robot, game, plan: myPlan, keepOrder: $('keepOrder').checked }, null, 2), 'application/json');
     $('sessLaunchStatus').textContent = `config.json téléchargé (${minutes} min) : déposez-le dans le dossier « entrainement » du dépôt sur GitHub.`;
   });
 
@@ -582,17 +808,19 @@
     stopTraining();
     robot = merge(BZ.defaultRobot(), sum.robot);
     const g = merge(BZ.defaultGame(), sum.game);
-    Object.assign(game, g, { zonePartenaire: (sum.game && sum.game.zonePartenaire) || null, departImpose: (sum.game && sum.game.departImpose) || null });
+    Object.assign(game, g, { zonePartenaire: null, departImpose: null, zones: (sum.game && sum.game.zones) || [] });
+    if (sum.game && sum.game.zonePartenaire) game.zones.push(Object.assign({ id: 'zpart', kind: 'interdite', color: '#7a3cff' }, sum.game.zonePartenaire));
     fillForm($('robotForm'), robot);
     fillForm($('gameForm'), game);
     persist(); showRobotWarnings();
-    const o = new BZ.Optimizer(window.FIELD, robot, game, { seed: 1, popSize: 2 });
-    best = o.sim.run(sum.plan);
-    opt = null;
-    currentWorld = o.world;
+    ctx = null; opt = null; aiPreview = null;
+    const p = sum.plan;
+    myPlan = clone({ start: (sum.game && sum.game.departImpose) || p.start, startLock: !!(sum.game && sum.game.departImpose) || !!p.startLock, actions: p.actions, park: p.park || { on: false, t: 0.5 } });
+    persistPlan();
+    resim();
     pushState();
     setTime(0);
-    $('cloudStatus').textContent = `Résultat chargé : ${best.expected.toFixed(1)} pts espérés (entraînement de ${sum.minutes} min, ${sum.strategiesTestees || '?'} stratégies testées).`;
+    $('cloudStatus').textContent = `Résultat chargé : ${best ? best.expected.toFixed(1) : '?'} pts espérés (entraînement de ${sum.minutes} min, ${sum.strategiesTestees || '?'} stratégies testées).`;
     if (robotModel) applyModel(false);
   }
   $('loadResult').addEventListener('change', async (e) => {
@@ -607,7 +835,7 @@
     $('cloudBanner').hidden = false;
     $('cloudBanner').innerHTML = `Résultat d'un entraînement dans le cloud trouvé : <b>${c.score.toFixed(1)} pts</b> espérés, ${c.minutes} min, le ${d.toLocaleDateString('fr-FR')} à ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` +
       (c.termine ? '' : ' (pas terminé)') + '. <button class="btn primary" id="useCloud" type="button">Charger ce résultat</button>';
-    $('useCloud').addEventListener('click', () => { loadCloudResult(c); document.querySelector('.tab[data-tab="ia"]').click(); });
+    $('useCloud').addEventListener('click', () => loadCloudResult(c));
   }
 
   // ---------------- Sessions dans le cloud (pilotées depuis l'appli) ----------------
@@ -622,7 +850,6 @@
     $('ghBranch').value = ghSettings.branch;
     $('ghToken').value = ghSettings.token;
   }
-  const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const fmtDate = (d) => { if (!d) return '–'; const x = new Date(d); return x.toLocaleDateString('fr-FR') + ' ' + x.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); };
 
   async function ghConnect(silent) {
@@ -671,7 +898,7 @@
     lastSessions = list;
     const best = BZ.bestSession(list);
     const running = list.filter((s) => s.status !== 'completed').length;
-    document.querySelector('.tab[data-tab="cloud"]').textContent = running ? `☁ Sessions (${running})` : '☁ Sessions';
+    $('optDotLabel').textContent = running ? `Optimiser (☁ ${running})` : 'Optimiser';
     if (!list.length) { $('sessList').innerHTML = '<p class="hint">Aucune session pour l\'instant : lancez-en une ci-dessus.</p>'; $('bestCard').hidden = true; return; }
     const card = (s) => {
       const r = s.result;
@@ -729,14 +956,14 @@
   }
   $('sessRefresh').addEventListener('click', () => (cloud ? refreshSessions() : ghConnect(false)));
 
-  document.getElementById('tab-cloud').addEventListener('click', async (e) => {
+  document.getElementById('page-opt').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
     const s = lastSessions.find((x) => x.id === b.dataset.id);
     if (!s) return;
     const act = b.dataset.act;
     try {
-      if (act === 'load') { loadCloudResult(s.result); document.querySelector('.tab[data-tab="ia"]').click(); }
+      if (act === 'load') loadCloudResult(s.result);
       else if (act === 'java') download('AutoBiobuzzIA.java', sessionTexts(s.result).java, 'text/x-java');
       else if (act === 'blk') download('AutoBiobuzzIA.blk', sessionTexts(s.result).blk, 'application/xml');
       else if (act === 'cancel') {
@@ -749,7 +976,7 @@
 
   $('sessLaunch').addEventListener('click', async () => {
     if (!cloud && !(await ghConnect(false))) {
-      $('sessLaunchStatus').textContent = 'Connectez d\'abord GitHub (en bas de cet onglet).';
+      $('sessLaunchStatus').textContent = 'Connectez d\'abord GitHub (en bas de cette page).';
       return;
     }
     const minutes = Math.max(5, Math.min(340, parseFloat($('sessMinutes').value) || 300));
@@ -757,7 +984,7 @@
     $('sessLaunch').disabled = true;
     $('sessLaunchStatus').textContent = 'Lancement…';
     try {
-      await cloud.launch(nom, minutes, { version: 1, nom, minutes, robot, game });
+      await cloud.launch(nom, minutes, { version: 1, nom, minutes, robot, game, plan: myPlan, keepOrder: $('keepOrder').checked });
       $('sessLaunchStatus').innerHTML = `<span class="ok">✓ Session « ${esc(nom)} » lancée pour ${minutes} min.</span> Elle apparaît dans la liste d'ici quelques secondes. Vous pouvez éteindre l'ordinateur.`;
       setTimeout(() => refreshSessions(), 6000);
       setTimeout(() => refreshSessions(), 20000);
@@ -773,15 +1000,18 @@
   const ua = navigator.userAgent || '';
   if (/Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS/.test(ua)) $('safariNote').hidden = false;
   showRobotWarnings();
-  $('constraintStatus').textContent = constraintText();
+  ensurePlan();
+  if (legacyStart) persist();
+  resim();
   pushState();
   setTime(0);
+  try { const p = parseInt(localStorage.getItem(PAGE_KEY) || '0', 10); if (p) requestAnimationFrame(() => goPage(p, true)); } catch (e) { /* rien */ }
   BZ.loadRobotModel().then((m) => { robotModel = m; applyModel(false); });
   $('randomMatch').addEventListener('change', () => {
     randomSeed = (Date.now() & 0xffff) + 1;
     $('animNote').textContent = $('randomMatch').checked
       ? 'Animation : match tiré au hasard avec la précision du robot (décochez/recochez pour un autre tirage).'
-      : 'Animation : scénario où tous les tirs possibles entrent. Le score affiché est l\'espérance.';
+      : 'Animation : tous les tirs possibles entrent. Le score affiché est l\'espérance.';
     pushState();
   });
 
@@ -789,6 +1019,14 @@
   window.BZApp = {
     get best() { return best; },
     get opt() { return opt; },
+    get plan() { return myPlan; },
+    view2dFrame: () => view2d.frame(),
+    get game() { return game; },
+    get editor() { return editor; },
+    get aiPreview() { return aiPreview; },
+    keepAi,
+    setTool,
+    goPage,
     train: startTraining,
     stop: stopTraining,
     setTime,

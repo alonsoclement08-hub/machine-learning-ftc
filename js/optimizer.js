@@ -16,8 +16,14 @@
     this.rand = G.rng(opts.seed || 12345);
     this.popSize = opts.popSize || 70;
     this.maxActions = 10;
-    this.starts = game.departImpose ? [game.departImpose] : BZ.legalStarts(this.world, 3);
+    this.base = opts.base ? JSON.parse(JSON.stringify(opts.base)) : null; // plan dessiné par l'équipe
+    this.keepOrder = !!(this.base && opts.keepOrder);
+    const fixedStart = game.departImpose || (this.base && this.base.startLock ? this.base.start : null);
+    this.starts = fixedStart ? [fixedStart] : BZ.legalStarts(this.world, 3);
+    if (this.base && this.base.start && !fixedStart && !BZ.checkStart(this.world, this.base.start).length) this.starts.push(this.base.start);
     if (!this.starts.length) throw new Error('Aucune position de départ légale : robot trop grand ?');
+    this.zones = {};
+    for (const z of game.zones || []) this.zones[z.id] = BZ.zoneRect(z);
     this.sources = ['jardin'].concat(this.world.flowers.map((f) => f.id));
     this.shootSpots = this.computeShootSpots();
     this.bestSpots = this.rankSpots();
@@ -27,7 +33,90 @@
     this.pop = [];
     this.evals = 0;
     this.seedPopulation();
+    if (this.base) this.seedBase();
   }
+
+  // Garde un point dans sa zone (zone de tir / de passage) ou au moins de notre côté du terrain.
+  Optimizer.prototype.clampPoint = function (a) {
+    const R = this.rd.radius, half = this.world.half;
+    const z = a.zone && this.zones[a.zone];
+    if (z) {
+      a.x = Math.min(z.x1, Math.max(z.x0, a.x));
+      a.y = Math.min(z.y1, Math.max(z.y0, a.y));
+    }
+    a.x = Math.min(-R, Math.max(-half + R, a.x));
+    a.y = Math.min(half - R, Math.max(-half + R, a.y));
+  };
+
+  // Le plan de l'équipe entre dans la population (et sert de base en mode « garder l'ordre »).
+  Optimizer.prototype.seedBase = function () {
+    const b = this.base;
+    let idx = this.starts.findIndex((s) => Math.abs(s.x - b.start.x) < 0.05 && Math.abs(s.y - b.start.y) < 0.05 && Math.abs(G.wrap(s.h - b.start.h)) < 1e-3);
+    if (idx < 0) idx = 0;
+    const g = { startIdx: idx, actions: b.actions.map((a) => Object.assign({}, a)), park: Object.assign({ on: false, t: 0.5 }, b.park) };
+    this.baseGenome = g;
+    this.evaluate(g);
+    if (this.keepOrder) {
+      this.pop = [g];
+      while (this.pop.length < this.popSize) {
+        let c = this.clone(g);
+        const nm = 1 + Math.floor(this.rand() * 3);
+        for (let k = 0; k < nm; k++) c = this.softMutate(c);
+        this.pop.push(c);
+      }
+    } else this.pop[this.pop.length - 1] = g;
+    if (!this.best || g.result.fitness > this.best.result.fitness) this.best = g;
+  };
+
+  // Mutation « douce » : ne change ni l'ordre ni la nature des étapes, ne touche pas aux étapes 🔒.
+  // Elle déplace les points (dans leur zone), courbe les flèches, change le nombre de balles,
+  // ajoute ou retire des points de passage automatiques, et bouge un peu le départ et le PARK.
+  Optimizer.prototype.softMutate = function (g) {
+    const c = this.clone(g);
+    const A = c.actions;
+    const free = A.map((a, i) => (a.lock ? -1 : i)).filter((i) => i >= 0);
+    const pts = free.filter((i) => A[i].type === 'tir' || A[i].type === 'via');
+    const r = this.rand();
+    if (r < 0.4 && pts.length) {
+      const a = A[this.pick(pts)];
+      const sigma = this.rand() < 0.6 ? 3 : 10;
+      a.x += (this.rand() - 0.5) * 2 * sigma;
+      a.y += (this.rand() - 0.5) * 2 * sigma;
+      this.clampPoint(a);
+    } else if (r < 0.58 && (free.length || (c.park && c.park.on && !c.park.lock))) {
+      // courbe d'une flèche : ajoute, déplace ou retire le point de contrôle
+      const useP = c.park && c.park.on && !c.park.lock && (!free.length || this.rand() < 0.15);
+      const a = useP ? c.park : A[this.pick(free)];
+      if (a.ctrl && this.rand() < 0.3) delete a.ctrl;
+      else {
+        let tgt = a.x !== undefined ? [a.x, a.y] : null;
+        if (!tgt) { const p = useP ? BZ.parkPose(this.world, a.t, 0) : BZ.pickupPose(this.world, a.src); tgt = p ? [p.x, p.y] : [-50, 0]; }
+        const base = a.ctrl || tgt;
+        const sigma = a.ctrl ? 6 : 18;
+        a.ctrl = [base[0] + (this.rand() - 0.5) * 2 * sigma, base[1] + (this.rand() - 0.5) * 2 * sigma];
+      }
+    } else if (r < 0.7) {
+      const shots = free.filter((i) => A[i].type === 'tir');
+      if (shots.length) A[this.pick(shots)].n = this.randomN();
+    } else if (r < 0.82) {
+      // point de passage automatique : en ajouter un (avant une étape libre) ou en retirer un
+      const autos = A.map((a, i) => (a.auto ? i : -1)).filter((i) => i >= 0);
+      if (autos.length && this.rand() < 0.45) A.splice(this.pick(autos), 1);
+      else if (A.length < 16) {
+        const k = Math.floor(this.rand() * (A.length + 1));
+        if (k < A.length && A[k].lock) return c;
+        const s = this.pick(this.shootSpots) || [-40, 0];
+        const v = { type: 'via', x: s[0], y: s[1], auto: true };
+        this.clampPoint(v);
+        A.splice(k, 0, v);
+      }
+    } else if (r < 0.92) {
+      if (this.starts.length > 1) c.startIdx = Math.max(0, Math.min(this.starts.length - 1, c.startIdx + this.pick([-2, -1, 1, 2])));
+    } else if (c.park && !c.park.lock) {
+      c.park.t = Math.min(1, Math.max(0, c.park.t + (this.rand() - 0.5) * 0.4));
+    }
+    return c;
+  };
 
   // Points de tir candidats : libres pour le robot et à bonne distance d'une des deux CELLS.
   Optimizer.prototype.computeShootSpots = function () {
@@ -213,7 +302,8 @@
   };
 
   Optimizer.prototype.clone = function (g) {
-    return { startIdx: g.startIdx, actions: g.actions.map((a) => Object.assign({}, a)), park: Object.assign({}, g.park) };
+    const cp = (a) => { const b = Object.assign({}, a); if (a.ctrl) b.ctrl = a.ctrl.slice(); return b; };
+    return { startIdx: g.startIdx, actions: g.actions.map(cp), park: cp(g.park || { on: false, t: 0.5 }) };
   };
 
   Optimizer.prototype.mutate = function (g) {
@@ -228,8 +318,7 @@
         const sigma = this.rand() < 0.5 ? 3 : 10;
         s.x += (this.rand() - 0.5) * 2 * sigma;
         s.y += (this.rand() - 0.5) * 2 * sigma;
-        s.x = Math.min(-this.rd.radius, Math.max(-this.world.half + this.rd.radius, s.x));
-        s.y = Math.min(this.world.half - this.rd.radius, Math.max(-this.world.half + this.rd.radius, s.y));
+        this.clampPoint(s);
       }
     } else if (r < 0.42 && A.length < this.maxActions) {
       A.splice(Math.floor(this.rand() * (A.length + 1)), 0, this.randomAction());
@@ -241,6 +330,9 @@
     } else if (r < 0.68) {
       const pk = A.filter((a) => a.type === 'ramasse');
       if (pk.length) this.pick(pk).src = this.pick(this.sources);
+    } else if (r < 0.7 && this.base) {
+      // en partant d'un plan dessiné, l'IA peut aussi courber les flèches
+      return this.softMutate(c);
     } else if (r < 0.74) {
       // change le nombre de balles d'un tir
       const shots = A.filter((a) => a.type === 'tir');
@@ -280,7 +372,7 @@
   Optimizer.prototype.refine = function (g, budget) {
     let best = g;
     const steps = [3, -3];
-    const shotIdx = g.actions.map((a, i) => (a.type === 'tir' ? i : -1)).filter((i) => i >= 0);
+    const shotIdx = g.actions.map((a, i) => ((a.type === 'tir' || (a.type === 'via' && this.base)) && !a.lock ? i : -1)).filter((i) => i >= 0);
     let tries = 0;
     for (let k = 0; k < budget && tries < budget; k++) {
       const c = this.clone(best);
@@ -289,9 +381,8 @@
         const k = this.pick([0.5, 1, 1, 2]); // pas de 1,5 / 3 / 6 in
         if (this.rand() < 0.5) a.x += this.pick(steps) * k;
         else a.y += this.pick(steps) * k;
-        a.x = Math.min(-this.rd.radius, Math.max(-this.world.half + this.rd.radius, a.x));
-        a.y = Math.min(this.world.half - this.rd.radius, Math.max(-this.world.half + this.rd.radius, a.y));
-      } else {
+        this.clampPoint(a);
+      } else if (this.starts.length > 1) {
         c.startIdx = Math.max(0, Math.min(this.starts.length - 1, c.startIdx + this.pick([-1, 1])));
       }
       this.evaluate(c);
@@ -311,6 +402,17 @@
     if (!this.best || this.pop[0].result.fitness > this.best.result.fitness) this.best = this.pop[0];
     this.history.push({ gen: this.generation, best: this.best.result.fitness, expected: this.best.result.expected });
     const next = this.pop.slice(0, 4); // élitisme
+    if (this.keepOrder) {
+      while (next.length < this.popSize) {
+        let child = this.clone(this.tournament());
+        const nm = 1 + Math.floor(this.rand() * 2);
+        for (let k = 0; k < nm; k++) child = this.softMutate(child);
+        next.push(child);
+      }
+      this.pop = next;
+      this.generation++;
+      return this.best;
+    }
     // un peu de sang neuf à chaque génération
     for (let i = 0; i < 2; i++) next.push(this.randomPlan());
     for (let i = 0; i < 2; i++) next.push(this.smartPlan());
