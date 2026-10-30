@@ -60,7 +60,11 @@
   };
 
   const view2d = new BZ.Field2D($('field2d'));
-  view2d.insets = { top: 64, bottom: 62 };
+  // place laissée au terrain entre l'île (en haut) et la barre du bas ; plus compacte en paysage sur téléphone
+  const landscapeQ = window.matchMedia('(orientation: landscape) and (max-height: 560px)');
+  const setInsets = () => { view2d.insets = landscapeQ.matches ? { top: 42, bottom: 42 } : { top: 64, bottom: 62 }; view2d.resize(); };
+  setInsets();
+  if (landscapeQ.addEventListener) landscapeQ.addEventListener('change', setInsets); else if (landscapeQ.addListener) landscapeQ.addListener(setInsets);
   const view3d = new BZ.Field3D($('field3d'));
 
   // ---------------- Formulaires ----------------

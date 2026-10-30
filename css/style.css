@@ -329,3 +329,44 @@ html, body { overflow: hidden; }
 .chatform { display: flex; gap: 6px; align-items: flex-end; }
 .chatform textarea { resize: vertical; min-height: 40px; max-height: 160px; }
 .chat-sugg[hidden] { display: none; }
+
+/* Téléphone en paysage : terrain à gauche, pages à droite, outils compacts */
+@media (orientation: landscape) and (max-height: 560px) {
+  html, body { overflow: hidden; }
+  .app { grid-template-columns: minmax(0, 1fr) minmax(280px, 38vw); height: 100vh; height: 100dvh; }
+  .stage { height: auto; }
+  .side { height: 100vh; height: 100dvh; border-top: 0; border-left: 1px solid var(--line); }
+  .pager { height: auto; }
+  .brandline, .animnote { display: none; }
+  .pager-head { padding: 4px 4px 2px; }
+  .pdot { padding: 4px 8px; font-size: 12px; }
+  .page { padding: 2px 8px 12px; }
+  .island { left: 6px; right: 6px; top: 6px; transform: none; max-width: none; padding: 3px 5px; border-radius: 18px; }
+  .island.open { padding: 4px 6px 6px; }
+  .isl-main { flex-direction: row; align-items: center; gap: 4px; }
+  .tool { min-width: 30px; height: 30px; font-size: 15px; padding: 0 5px; }
+  .tool.active span { display: none; }
+  .tool.mini { min-width: 26px; font-size: 13px; }
+  .isl-sep { margin: 0 2px; }
+  .isl-kpis { flex-wrap: nowrap; }
+  .pill { font-size: 11px; padding: 3px 7px; }
+  .pill:nth-child(2), .pill:nth-child(4) { display: none; }
+  .opts { padding-top: 5px; gap: 4px 6px; font-size: 11.5px; }
+  .chip { font-size: 11.5px; padding: 3px 8px; }
+  .aibar { top: 46px; padding: 5px 8px; font-size: 12px; }
+  .aibar .btn { padding: 4px 8px; font-size: 12px; }
+  .bottombar { left: 6px; right: 6px; bottom: 6px; gap: 6px; }
+  .segbtn { padding: 5px 11px; font-size: 12px; }
+  .player { padding: 2px 8px 2px 2px; }
+  .player .btn.icon { width: 30px; height: 30px; padding: 4px; }
+  .player .check { display: none; }
+  .dock { left: auto; right: 6px; bottom: 44px; width: min(250px, calc(100% - 12px)); max-height: calc(100% - 96px); }
+  .dock-head .hint { display: none; }
+  .pdot { white-space: nowrap; }
+  .dock-head { padding: 6px 10px; font-size: 13px; }
+  .toast { bottom: 46px; }
+  .chatcard { min-height: 0; }
+}
+
+/* iPhone : encoche et barre d'accueil (plein écran depuis l'écran d'accueil) */
+.app { padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0); }

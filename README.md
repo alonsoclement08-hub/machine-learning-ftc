@@ -21,6 +21,19 @@ Le programme exporté ne dépend que de **3 variables à calibrer** :
 
 Rien à installer et pas besoin d'Internet : l'appli marche aussi hors ligne, au bord du terrain.
 
+## Sur iPhone ou iPad
+
+1. Une seule fois : sur GitHub, **Settings > Pages**, « Build and deployment » : *Deploy from a branch*,
+   branche `claude/zealous-euler-ceeast`, dossier `/ (root)`, **Save**. Après 1 à 2 minutes, l'appli est
+   en ligne sur **https://alonsoclement08-hub.github.io/machine-learning-ftc/**.
+2. Sur l'iPhone, ouvrez ce lien dans **Safari**, puis **Partager > Sur l'écran d'accueil** : l'appli
+   s'ouvre alors en plein écran, sans les barres de Safari.
+3. Tournez l'iPhone en **paysage** : terrain à gauche, pages à droite, outils compacts. Pour le
+   robot, importez le **STL** (le STEP est lent sur téléphone).
+
+Les réglages et le plan sont gardés dans l'iPhone (pas partagés avec l'ordinateur) : utilisez
+« Exporter le plan » / « Importer un plan » pour passer de l'un à l'autre.
+
 ## Utilisation
 
 L'écran est en deux parties : **le terrain en grand** à gauche, **une barre à 3 pages** à droite
