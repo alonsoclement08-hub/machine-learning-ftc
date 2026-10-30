@@ -406,6 +406,47 @@
   $('islOpts').addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (b && b.tagName !== 'SELECT') islandAction(b.dataset.act); });
   $('islOpts').addEventListener('change', (e) => { const s2 = e.target.closest('select[data-act]'); if (s2) islandAction(s2.dataset.act, s2.value); });
 
+  // ---------------- Île déplaçable ----------------
+  // On la fait glisser par la poignée ⠿ ; sa place est gardée (double-clic : retour au centre).
+  const ISL_KEY = 'biobuzz-island-pos';
+  const island = $('island'), stageEl = $('stage');
+  let islPos = null; // {fx, fy} : position relative (0..1) dans le terrain
+  try { islPos = JSON.parse(localStorage.getItem(ISL_KEY) || 'null'); } catch (e) { islPos = null; }
+  function placeIsland() {
+    if (!islPos) { island.classList.remove('moved'); island.style.left = ''; island.style.top = ''; return; }
+    const W = stageEl.clientWidth, H = stageEl.clientHeight, w = island.offsetWidth, h = island.offsetHeight;
+    const x = Math.max(6, Math.min(W - w - 6, islPos.fx * (W - w)));
+    const y = Math.max(6, Math.min(H - h - 6, islPos.fy * (H - h)));
+    island.classList.add('moved');
+    island.style.left = x + 'px'; island.style.top = y + 'px';
+  }
+  let islDrag = null;
+  $('islGrip').addEventListener('pointerdown', (e) => {
+    const r = island.getBoundingClientRect(), sr = stageEl.getBoundingClientRect();
+    islDrag = { dx: e.clientX - r.left, dy: e.clientY - r.top, sr };
+    island.classList.add('dragging');
+    $('islGrip').setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  $('islGrip').addEventListener('pointermove', (e) => {
+    if (!islDrag) return;
+    const sr = islDrag.sr, w = island.offsetWidth, h = island.offsetHeight;
+    const x = e.clientX - sr.left - islDrag.dx, y = e.clientY - sr.top - islDrag.dy;
+    islPos = { fx: Math.max(0, Math.min(1, x / Math.max(1, sr.width - w))), fy: Math.max(0, Math.min(1, y / Math.max(1, sr.height - h))) };
+    placeIsland();
+  });
+  const endIslDrag = () => {
+    if (!islDrag) return;
+    islDrag = null;
+    island.classList.remove('dragging');
+    try { localStorage.setItem(ISL_KEY, JSON.stringify(islPos)); } catch (e) { /* rien */ }
+  };
+  $('islGrip').addEventListener('pointerup', endIslDrag);
+  $('islGrip').addEventListener('pointercancel', endIslDrag);
+  $('islGrip').addEventListener('dblclick', () => { islPos = null; try { localStorage.removeItem(ISL_KEY); } catch (e) { /* rien */ } placeIsland(); });
+  const islRO = new ResizeObserver(placeIsland);
+  islRO.observe(stageEl); islRO.observe(island);
+
   // ---------------- Liste des étapes ----------------
   const ICON = { tir: '◎', via: '➜', ramasse: '⬚', park: '🅿' };
   function stepText(a) {

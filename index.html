@@ -22,6 +22,7 @@
     <!-- Île dynamique : outils de dessin + scores -->
     <div class="island" id="island">
       <div class="isl-main">
+        <button class="isl-grip" id="islGrip" type="button" title="Glisser pour déplacer l'île · double-clic pour la remettre au centre" aria-label="Déplacer l'île">⠿</button>
         <div class="isl-tools" role="toolbar" aria-label="Outils">
           <button class="tool active" type="button" data-tool="select" title="Sélectionner / déplacer (V)">✋<span>Choisir</span></button>
           <button class="tool" type="button" data-tool="via" title="Flèche : point de passage (A). Tirez la poignée du milieu pour courber.">➜<span>Flèche</span></button>
@@ -85,7 +86,7 @@
 
   <!-- ===================== BARRE DE DROITE : 3 PAGES ===================== -->
   <aside class="side">
-    <div class="brandline"><span aria-hidden="true">🐝</span> <b>BIOBUZZ Auto IA</b> <span class="mono" id="appVersion">v13.1 · 30/10</span></div>
+    <div class="brandline"><span aria-hidden="true">🐝</span> <b>BIOBUZZ Auto IA</b> <span class="mono" id="appVersion">v13.2 · 30/10</span></div>
     <div class="pager-head">
       <button class="btn icon ghost" id="pagePrev" type="button" aria-label="Page précédente">‹</button>
       <div class="pager-dots" role="tablist">

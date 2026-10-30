@@ -370,3 +370,10 @@ html, body { overflow: hidden; }
 
 /* iPhone : encoche et barre d'accueil (plein écran depuis l'écran d'accueil) */
 .app { padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0); }
+
+/* Île déplaçable */
+.isl-grip { flex: none; width: 22px; height: 30px; border: 0; background: transparent; color: #8d8b85; font-size: 16px; cursor: grab; touch-action: none; padding: 0; border-radius: 8px; }
+.isl-grip:hover { color: #f2f1ec; background: rgba(255, 255, 255, 0.08); }
+.island.dragging { transition: none; opacity: 0.92; }
+.island.dragging .isl-grip { cursor: grabbing; }
+.island.moved { transform: none !important; right: auto !important; max-width: calc(100% - 12px) !important; }
