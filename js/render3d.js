@@ -375,7 +375,7 @@
           const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(24)), new THREE.LineDashedMaterial({ color: new THREE.Color(pc), dashSize: 2, gapSize: 2 }));
           l.computeLineDistances(); g.add(l);
         }
-        const sp = label(THREE, (n.n ? '×' + n.n : '×tout') + (sh && sh.p > 0 ? ' · ' + Math.round(sh.p * 100) + '%' : ' · ✗'), pc);
+        const sp = label(THREE, (n.n ? '×' + n.n : '×tout') + (sh && sh.p > 0 ? ' · ' + Math.round(sh.p * 100) + '%' : ' · 0%'), pc);
         sp.position.copy(at).setZ(24); g.add(sp);
       } else if (n.kind === 'ramasse') {
         const b = new THREE.Mesh(new THREE.BoxGeometry(5, 5, 1.2), new THREE.MeshLambertMaterial({ color: on ? 0xe0a100 : 0xf5d300 }));

@@ -55,6 +55,10 @@
   const persist = () => {
     try { localStorage.setItem(LS_KEY, JSON.stringify({ robot, game })); } catch (e) { /* pas de stockage */ }
   };
+  // Petit dessin du jeu d'icônes (sprite SVG en tête de index.html).
+  const ic = (n, c) => `<svg class="ic${c ? ' ' + c : ''}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+  const okTxt = (t) => `<span class="ok">${ic('check')}${t}</span>`;
+  const badTxt = (t) => `<span class="bad">${ic('x')}${t}</span>`;
   const persistPlan = () => {
     try { localStorage.setItem(PLAN_KEY, JSON.stringify(myPlan)); } catch (e) { /* pas de stockage */ }
   };
@@ -111,7 +115,7 @@
 
   function showRobotWarnings() {
     const w = BZ.robotWarnings(robot);
-    $('robotWarnings').innerHTML = w.map((x) => `<p>⚠ ${x}</p>`).join('');
+    $('robotWarnings').innerHTML = w.map((x) => `<p>${ic('alert')}${x}</p>`).join('');
   }
 
   // Liste des règles
@@ -361,7 +365,7 @@
     let h = '';
     if (aiPreview) h = '';
     else if (t === 'tir') h = `<span class="lbl">Balles par tir</span>${nChips(editor.tirN)}<span class="lbl">Cliquez où le robot s'arrête pour tirer.</span>`;
-    else if (t === 'via') h = '<span class="lbl">Cliquez pour ajouter un point de passage. Avec ✋, tirez le losange au milieu d\'une flèche pour la courber.</span>';
+    else if (t === 'via') h = '<span class="lbl">Cliquez pour ajouter un point de passage. Avec l\'outil Choisir, tirez le losange au milieu d\'une flèche pour la courber.</span>';
     else if (t === 'ramasse') h = `<span class="lbl">Cliquez sur une FLOWER ou sur le GARDEN de votre côté${robot.intake.nectar ? ', ou dans la LOADING ZONE pour le NECTAR posé après une bascule' : ''}.</span>`;
     else if (t === 'park') h = `<span class="lbl">Cliquez dans la LOADING ZONE.</span>${chip('park:off', 'Pas de PARK', !(myPlan.park && myPlan.park.on))}`;
     else if (t === 'zone') h = `<span class="lbl">Type</span>${kindChips(editor.zoneKind)}<span class="lbl">Couleur</span>${swatches(editor.zoneColor)}<span class="lbl">${esc(BZ.ZONE_KINDS[editor.zoneKind].aide)} · glissez sur le terrain.</span>`;
@@ -379,7 +383,7 @@
   function selOpts(sel) {
     let h = '';
     {
-      if (sel.type === 'node' && sel.i === 'park') h = `<span class="lbl">PARK</span>${chip('lock', myPlan.park.lock ? '🔒 Verrouillé' : '🔓 Libre', myPlan.park.lock)}${myPlan.park.ctrl ? chip('straight', 'Redresser la flèche') : ''}${chip('del', 'Retirer le PARK', false, 'danger')}`;
+      if (sel.type === 'node' && sel.i === 'park') h = `<span class="lbl">PARK</span>${chip('lock', myPlan.park.lock ? ic('lock') + 'Verrouillé' : ic('unlock') + 'Libre', myPlan.park.lock)}${myPlan.park.ctrl ? chip('straight', 'Redresser la flèche') : ''}${chip('del', 'Retirer le PARK', false, 'danger')}`;
       else if (sel.type === 'node') {
         const a = myPlan.actions[sel.i];
         if (a) {
@@ -388,13 +392,13 @@
           h = `<span class="lbl">Étape ${sel.i + 1}</span>`;
           if (a.type === 'tir') h += nChips(a.n);
           if (a.type === 'ramasse') h += ['fleur0', 'fleur1', 'jardin'].concat(robot.intake.nectar ? ['nectar'] : []).map((s2) => chip('src:' + s2, srcName(s2), a.src === s2)).join('');
-          h += zsel + chip('lock', a.lock ? '🔒 Verrouillée' : '🔓 Libre', !!a.lock) + (a.ctrl ? chip('straight', 'Redresser') : '') + chip('del', 'Supprimer', false, 'danger');
+          h += zsel + chip('lock', a.lock ? ic('lock') + 'Verrouillée' : ic('unlock') + 'Libre', !!a.lock) + (a.ctrl ? chip('straight', 'Redresser') : '') + chip('del', 'Supprimer', false, 'danger');
         }
       } else if (sel.type === 'ctrl') h = `${chip('straight', 'Redresser la flèche')}<span class="lbl">Glissez le losange pour courber.</span>`;
       else if (sel.type === 'zone') {
         const z = game.zones.find((q) => q.id === sel.id);
         if (z) h = `<span class="lbl">Zone</span>${kindChips(z.kind)}${swatches(z.color)}${chip('del', 'Supprimer', false, 'danger')}`;
-      } else if (sel.type === 'start') h = `<span class="lbl">Départ</span>${chip('rot:90', '⟲ 90°')}${chip('rot:-90', '⟳ 90°')}${chip('start:free', myPlan.startLock ? '🔒 Fixé (libérer)' : '🔓 Choisi par l\'IA', !!myPlan.startLock)}`;
+      } else if (sel.type === 'start') h = `<span class="lbl">Départ</span>${chip('rot:90', ic('rotate-ccw') + '90°')}${chip('rot:-90', ic('rotate-cw') + '90°')}${chip('start:free', myPlan.startLock ? ic('lock') + 'Fixé (libérer)' : ic('unlock') + 'Choisi par l\'IA', !!myPlan.startLock)}`;
     }
     return h;
   }
@@ -440,7 +444,7 @@
   $('islOpts').addEventListener('change', (e) => { const s2 = e.target.closest('select[data-act]'); if (s2) islandAction(s2.dataset.act, s2.value); });
 
   // ---------------- Île déplaçable ----------------
-  // On la fait glisser par la poignée ⠿ ; sa place est gardée (double-clic : retour au centre).
+  // On la fait glisser par la poignée (six points) ; sa place est gardée (double-clic : retour au centre).
   const ISL_KEY = 'biobuzz-island-pos';
   const island = $('island'), stageEl = $('stage');
   let islPos = null; // {fx, fy} : position relative (0..1) dans le terrain
@@ -504,12 +508,12 @@
   // Ce qu'est l'objet sélectionné, en clair. `target` : où ranger son nom (null = pas de nom).
   function describeSel(sel) {
     const r = best, w = worldNow();
-    const timing = (st) => (st ? (st.done ? `⏱ De ${st.t0.toFixed(1)} à ${st.t1.toFixed(1)} s pendant l'AUTO` : '⚠ Étape sautée par la simulation (plus le temps, ou impossible)') : '');
-    const lockTxt = (o) => (o.lock ? '🔒 Verrouillée : l\'IA ne la modifie pas' : '🔓 Libre : l\'IA peut l\'ajuster');
+    const timing = (st) => (st ? (st.done ? ['clock', `De ${st.t0.toFixed(1)} à ${st.t1.toFixed(1)} s pendant l'AUTO`] : ['alert', 'Étape sautée par la simulation (plus le temps, ou impossible)']) : null);
+    const lockTxt = (o) => (o.lock ? ['lock', 'Verrouillée : l\'IA ne la modifie pas'] : ['unlock', 'Libre : l\'IA peut l\'ajuster']);
     if (sel.type === 'node' && sel.i === 'park') {
       const p = myPlan.park;
       if (!p || !p.on) return null;
-      return { ic: '🅿', title: 'PARK', target: p,
+      return { ic: 'park', title: 'PARK', target: p,
         what: 'Fin de l\'AUTO : le robot se gare dans la LOADING ZONE pour marquer les points de PARK.',
         info: [timing(r && r.parkStep), lockTxt(p)] };
     }
@@ -522,7 +526,7 @@
         const sh = BZ.shotInfo(w, robot, a.x, a.y);
         title = 'Tir';
         what = `Le robot s'arrête ici et lance ${a.n ? a.n + ' balle' + (a.n > 1 ? 's' : '') : 'toutes ses balles'} dans la CELL.`;
-        info.push(sh.cell ? `🎯 Vise la ${sh.cellIdx === 0 ? 'CELL du haut' : 'CELL d\'après bascule'} · chance de marquer : ${Math.round(sh.p * 100)} %` : '⚠ Aucune CELL atteignable d\'ici : rapprochez le point de tir.');
+        info.push(sh.cell ? ['target', `Vise la ${sh.cellIdx === 0 ? 'CELL du haut' : 'CELL d\'après bascule'} · chance de marquer : ${Math.round(sh.p * 100)} %`] : ['alert', 'Aucune CELL atteignable d\'ici : rapprochez le point de tir.']);
       } else if (a.type === 'via') {
         title = a.auto ? 'Point de passage (ajouté par l\'IA)' : 'Point de passage';
         what = 'Le robot passe par ce point en allant vers l\'étape suivante : pour contourner un obstacle ou choisir son chemin.';
@@ -531,12 +535,12 @@
         what = `Le robot va chercher des balles : ${srcName(a.src)}.`;
       } else { title = a.type; what = ''; }
       const z = a.zone && game.zones.find((q) => q.id === a.zone);
-      if (z) info.push(`▭ Rattachée à : ${z.note || BZ.ZONE_KINDS[z.kind].nom}`);
+      if (z) info.push(['zone', `Rattachée à : ${z.note || BZ.ZONE_KINDS[z.kind].nom}`]);
       info.push(lockTxt(a));
-      return { ic: ICON[a.type] || '•', title: `Étape ${sel.i + 1} · ${title}`, what, info, target: a };
+      return { ic: ICON[a.type] || 'diamond', title: `Étape ${sel.i + 1} · ${title}`, what, info, target: a };
     }
     if (sel.type === 'ctrl') {
-      return { ic: '◆', title: 'Courbe de flèche', target: null,
+      return { ic: 'curve', title: 'Courbe de flèche', target: null,
         what: `Poignée de la flèche qui mène ${sel.i === 'park' ? 'au PARK' : 'à l\'étape ' + (sel.i + 1)}. Glissez-la pour courber le trajet ; « Redresser » remet la flèche droite.`,
         info: [] };
     }
@@ -546,15 +550,15 @@
       const k = BZ.ZONE_KINDS[z.kind], q = BZ.zoneRect(z);
       const L = q.x1 - q.x0, H = q.y1 - q.y0;
       const users = myPlan.actions.map((a, i) => (a.zone === z.id ? i + 1 : 0)).filter(Boolean);
-      return { ic: '▭', title: k.nom, target: z,
+      return { ic: 'zone', title: k.nom, target: z,
         what: k.aide.charAt(0).toUpperCase() + k.aide.slice(1) + '.',
-        info: [`📐 ${Math.round(L)} × ${Math.round(H)} in (${Math.round(L * 2.54)} × ${Math.round(H * 2.54)} cm)`,
-          users.length ? `Utilisée par l'étape ${users.join(', ')}` : (z.kind === 'interdite' ? '' : 'Rattachée à aucune étape')] };
+        info: [['ruler', `${Math.round(L)} × ${Math.round(H)} in (${Math.round(L * 2.54)} × ${Math.round(H * 2.54)} cm)`],
+          users.length ? ['list', `Utilisée par l'étape ${users.join(', ')}`] : (z.kind === 'interdite' ? null : ['list', 'Rattachée à aucune étape'])] };
     }
     if (sel.type === 'start') {
-      return { ic: '🤖', title: 'Départ du robot', target: null,
+      return { ic: 'robot', title: 'Départ du robot', target: null,
         what: 'Position et orientation du robot au début de l\'AUTO, collé au mur (règle G304).',
-        info: [myPlan.startLock ? '🔒 Fixé par vous' : '🔓 L\'IA peut choisir un meilleur départ', 'R / Q ou les boutons ⟲ ⟳ pour le tourner.'] };
+        info: [myPlan.startLock ? ['lock', 'Fixé par vous'] : ['unlock', 'L\'IA peut choisir un meilleur départ'], ['rotate-cw', 'R / Q ou les boutons de rotation pour le tourner.']] };
     }
     return null;
   }
@@ -564,11 +568,11 @@
     const sel = editor.sel, d = sel && !aiPreview ? describeSel(sel) : null;
     if (!d) { closeCard(); return; }
     const reorder = sel.type === 'node' && typeof sel.i === 'number'
-      ? chip('move:up', '↑ Plus tôt', false, sel.i > 0 ? '' : 'off') + chip('move:down', '↓ Plus tard', false, sel.i < myPlan.actions.length - 1 ? '' : 'off') : '';
-    const opts = selOpts(sel);
-    cardEl.innerHTML = `<div class="oc-head"><span class="oc-ic">${d.ic}</span><b>${esc(d.title)}</b><button class="oc-x" type="button" data-act="close" aria-label="Fermer">✕</button></div>` +
+      ? chip('move:up', ic('up') + 'Plus tôt', false, sel.i > 0 ? '' : 'off') + chip('move:down', ic('down') + 'Plus tard', false, sel.i < myPlan.actions.length - 1 ? '' : 'off') : '';
+    const opts = selOpts(sel).replace(/^<span class="lbl">Étape \d+<\/span>/, ''); // le titre le dit déjà
+    cardEl.innerHTML = `<div class="oc-head"><span class="oc-ic">${ic(d.ic)}</span><b>${esc(d.title)}</b><button class="oc-x" type="button" data-act="close" aria-label="Fermer">${ic('x')}</button></div>` +
       `<p class="oc-what">${esc(d.what)}</p>` +
-      (d.info.filter(Boolean).length ? `<ul class="oc-info">${d.info.filter(Boolean).map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : '') +
+      (d.info.filter(Boolean).length ? `<ul class="oc-info">${d.info.filter(Boolean).map(([n, t]) => `<li>${ic(n)}<span>${esc(t)}</span></li>`).join('')}</ul>` : '') +
       (d.target ? `<label class="oc-note">Nom (ce que c'est)<input type="text" maxlength="40" data-note placeholder="ex. : tir depuis le coin" value="${esc(d.target.note || '')}"></label>` : '') +
       `<div class="opts">${reorder}${opts}</div>`;
     cardEl.hidden = false;
@@ -601,7 +605,7 @@
   cardEl.addEventListener('keydown', (e) => { if (e.key === 'Escape' || (e.key === 'Enter' && e.target.matches('[data-note]'))) { e.stopPropagation(); closeCard(); } });
 
   // ---------------- Liste des étapes ----------------
-  const ICON = { tir: '◎', via: '➜', ramasse: '⬚', park: '🅿' };
+  const ICON = { tir: 'target', via: 'route', ramasse: 'grab', park: 'park' };
   function stepText(a) {
     if (a.note) return a.note;
     if (a.type === 'tir') return `Tir ${a.n ? '×' + a.n : '(toutes)'}` + (a.zone ? ' · zone' : '');
@@ -618,23 +622,23 @@
       const s = r && r.steps ? r.steps[i] : null;
       const cls = [sel.type === 'node' && sel.i === i ? 'sel' : '', s && !s.done ? 'skip' : '', s && tNow >= s.t0 && tNow < s.t1 ? 'now' : ''].filter(Boolean).join(' ');
       const tt = s ? (s.done ? `${s.t0.toFixed(1)}–${s.t1.toFixed(1)} s` : 'sautée') : '';
-      items.push(`<li class="${cls}" data-i="${i}"><span class="pi">${ICON[a.type] || '•'}</span><span class="ptxt">${i + 1}. ${esc(stepText(a))} ${a.lock ? '🔒' : ''}<br><span class="pt">${tt}</span></span>` +
-        (aiPreview ? '' : `<button class="pb" data-act="up" title="Monter">↑</button><button class="pb" data-act="down" title="Descendre">↓</button><button class="pb" data-act="lock" title="Verrouiller pour l'IA">${a.lock ? '🔒' : '🔓'}</button><button class="pb" data-act="del" title="Supprimer">✕</button>`) + '</li>');
+      items.push(`<li class="${cls}" data-i="${i}"><span class="pi">${ic(ICON[a.type] || 'diamond')}</span><span class="ptxt">${i + 1}. ${esc(stepText(a))} ${a.lock ? ic('lock', 'tiny') : ''}<br><span class="pt">${tt}</span></span>` +
+        (aiPreview ? '' : `<button class="pb" data-act="up" title="Monter">${ic('up')}</button><button class="pb" data-act="down" title="Descendre">${ic('down')}</button><button class="pb" data-act="lock" title="Verrouiller pour l'IA">${ic(a.lock ? 'lock' : 'unlock')}</button><button class="pb" data-act="del" title="Supprimer">${ic('x')}</button>`) + '</li>');
     });
     if (plan.park && plan.park.on) {
       const ps = r && r.parkStep;
-      items.push(`<li class="${sel.i === 'park' ? 'sel' : ''}" data-i="park"><span class="pi">🅿</span><span class="ptxt">${plan.park.note ? esc(plan.park.note) : 'PARK (LOADING ZONE)'}<br><span class="pt">${ps ? ps.t0.toFixed(1) + '–' + ps.t1.toFixed(1) + ' s' : ''}</span></span></li>`);
+      items.push(`<li class="${sel.i === 'park' ? 'sel' : ''}" data-i="park"><span class="pi">${ic('park')}</span><span class="ptxt">${plan.park.note ? esc(plan.park.note) : 'PARK (LOADING ZONE)'}<br><span class="pt">${ps ? ps.t0.toFixed(1) + '–' + ps.t1.toFixed(1) + ' s' : ''}</span></span></li>`);
     }
     if (!items.length) items.push('<li class="chances">Choisissez un outil dans l\'île en haut et dessinez votre AUTO sur le terrain.</li>');
     if (r) {
-      items.push(`<li class="chances">Fin à ${r.endT.toFixed(1)} s · LEAVE ${r.leave ? '✓' : '✗'} · PARK ${r.park ? '✓' : '✗'}` +
+      items.push(`<li class="chances">Fin à ${r.endT.toFixed(1)} s · LEAVE ${ic(r.leave ? 'check' : 'x', 'tiny')} · PARK ${ic(r.park ? 'check' : 'x', 'tiny')}` +
         (r.tipsAtLeast ? ' · ' + [1, 2, 3].filter((k) => k <= Math.max(1, r.nominalTips)).map((k) => `${k} bascule${k > 1 ? 's' : ''} : <b>${Math.round(r.tipsAtLeast[k] * 100)} %</b>`).join(' · ') : '') + '</li>');
     }
     $('planSteps').innerHTML = items.join('');
     $('dockSummary').textContent = `${(plan.actions || []).length} étapes` + (r ? ` · ${r.expected.toFixed(1)} pts · ${r.endT.toFixed(1)} s` : '');
     $('faultList').innerHTML = r && r.faults.length
-      ? r.faults.map((f) => `<p>⚠ <b>${f.rule}</b> ${(BZ.RULES[f.rule] || {}).titre || ''} ${f.info ? '(' + esc(f.info) + ')' : ''} à ${f.t.toFixed(1)} s</p>`).join('')
-      : (r ? '<p class="ok">✓ Aucune faute : le plan respecte les règles vérifiées.</p>' : '');
+      ? r.faults.map((f) => `<p>${ic('alert')}<b>${f.rule}</b> ${(BZ.RULES[f.rule] || {}).titre || ''} ${f.info ? '(' + esc(f.info) + ')' : ''} à ${f.t.toFixed(1)} s</p>`).join('')
+      : (r ? `<p>${okTxt('Aucune faute : le plan respecte les règles vérifiées.')}</p>` : '');
   }
   $('planSteps').addEventListener('click', (e) => {
     const li = e.target.closest('li[data-i]');
@@ -687,7 +691,7 @@
     const mine = simulate(myPlan);
     const r = aiPreview.result;
     bar.hidden = false;
-    bar.innerHTML = `<span>🤖 <b>Aperçu de l'IA</b> : ${r.expected.toFixed(1)} pts · ${r.endT.toFixed(1)} s` +
+    bar.innerHTML = `<span>${ic('spark')}<b>Aperçu de l'IA</b> : ${r.expected.toFixed(1)} pts · ${r.endT.toFixed(1)} s` +
       (mine ? ` <span class="hint">(votre plan : ${mine.expected.toFixed(1)} pts · ${mine.endT.toFixed(1)} s)</span>` : '') + '</span>' +
       '<button class="btn primary" type="button" id="aiKeep">Garder ce plan</button><button class="btn" type="button" id="aiDrop">Revenir à mon plan</button>';
     $('aiKeep').onclick = keepAi;
@@ -760,12 +764,12 @@
   function startTraining() {
     if (!opt && !makeOptimizer()) return;
     training = true;
-    $('trainBtn').textContent = '⏸ Pause';
+    $('trainBtn').innerHTML = ic('pause') + 'Pause';
     requestAnimationFrame(trainLoop);
   }
   function stopTraining() {
     training = false;
-    $('trainBtn').textContent = opt && opt.generation ? '▶ Continuer' : '▶ Optimiser mon plan';
+    $('trainBtn').innerHTML = ic('play') + (opt && opt.generation ? 'Continuer' : 'Optimiser mon plan');
   }
   $('trainBtn').addEventListener('click', () => (training ? stopTraining() : startTraining()));
   $('resetTrain').addEventListener('click', () => {
@@ -783,20 +787,20 @@
     if (view3d.ready) view3d.setTime(tNow);
     renderSteps();
   }
-  $('timeSlider').addEventListener('input', (e) => { playing = false; $('playBtn').textContent = '▶'; setTime(parseFloat(e.target.value)); });
+  $('timeSlider').addEventListener('input', (e) => { playing = false; $('playBtn').innerHTML = ic('play'); setTime(parseFloat(e.target.value)); });
   let lastFrame = 0;
   function playLoop(ts) {
     if (!playing) return;
     const dt = lastFrame ? (ts - lastFrame) / 1000 : 0;
     lastFrame = ts;
     setTime(tNow + dt);
-    if (tNow >= Math.min(30, best ? best.endT + 0.5 : 30)) { playing = false; $('playBtn').textContent = '▶'; return; }
+    if (tNow >= Math.min(30, best ? best.endT + 0.5 : 30)) { playing = false; $('playBtn').innerHTML = ic('play'); return; }
     requestAnimationFrame(playLoop);
   }
   $('playBtn').addEventListener('click', () => {
     if (!best) return;
     playing = !playing;
-    $('playBtn').textContent = playing ? '⏸' : '▶';
+    $('playBtn').innerHTML = ic(playing ? 'pause' : 'play');
     if (playing) {
       if (tNow >= Math.min(30, best.endT)) setTime(0);
       lastFrame = 0; requestAnimationFrame(playLoop);
@@ -873,10 +877,10 @@
       showRobotWarnings();
     }
     dimInputs.forEach((i) => { i.readOnly = true; });
-    $('dimsHint').textContent = 'Mesurées sur le modèle 3D (tournez-le avec les boutons ↻ si besoin).';
+    $('dimsHint').textContent = 'Mesurées sur le modèle 3D (tournez-le avec les boutons de rotation si besoin).';
     const ok = d.longueur <= 45.72 && d.largeur <= 45.72 && d.hauteur <= 45.72;
     $('importDims').innerHTML = `${d.longueur.toFixed(1)} × ${d.largeur.toFixed(1)} × ${d.hauteur.toFixed(1)} cm (longueur × largeur × hauteur) · ` +
-      (ok ? '<span class="ok">✓ tient dans le cube de 18 in</span>' : '<b style="color:var(--red)">✗ dépasse le cube de 45,7 cm (R102) : vérifiez l\'orientation</b>');
+      (ok ? okTxt('tient dans le cube de 18 in') : badTxt('<b>dépasse le cube de 45,7 cm (R102) : vérifiez l\'orientation</b>'));
     $('importStatus').textContent = `Modèle : ${robotModel.name}` + (robotModel.stl ? ` (STL, ${robotModel.tris || ''} triangles)`
       : robotModel.kept ? ` (${robotModel.kept} pièces gardées, ${robotModel.dropped} petites pièces retirées)` : '');
     preview.show(BZ.buildRobotGroup(robotModel), robot);
@@ -1006,9 +1010,9 @@
   $('showPedro').addEventListener('click', () => { codeShown = 'pedro'; refreshExport(); });
   $('dlPedro').addEventListener('click', () => { if (needPlan()) download('AutoBiobuzzIAPedro.java', exportTexts().pedro, 'text/x-java'); });
   $('copyCode').addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText($('codeView').value); $('copyCode').textContent = 'Copié ✓'; }
+    try { await navigator.clipboard.writeText($('codeView').value); $('copyCode').innerHTML = ic('check') + 'Copié'; }
     catch (e) { $('codeView').select(); document.execCommand('copy'); }
-    setTimeout(() => { $('copyCode').textContent = 'Copier'; }, 1500);
+    setTimeout(() => { $('copyCode').innerHTML = ic('copy') + 'Copier'; }, 1500);
   });
 
   // ---------------- Entraînement dans le cloud (GitHub Actions) ----------------
@@ -1078,7 +1082,7 @@
     try {
       const info = await cloud.check();
       try { localStorage.setItem(GH_KEY, JSON.stringify(ghSettings)); } catch (e) { /* pas de stockage */ }
-      $('ghState').innerHTML = `<span class="ok">✓ Connecté à <b>${esc(info.fullName)}</b></span>` +
+      $('ghState').innerHTML = okTxt(`Connecté à <b>${esc(info.fullName)}</b>`) +
         (info.private ? ' · dépôt privé : 2000 min de calcul gratuites par mois' : ' · dépôt public : calcul illimité');
       await refreshSessions();
       clearInterval(sessTimer);
@@ -1086,7 +1090,7 @@
       return true;
     } catch (err) {
       cloud = null;
-      $('ghState').innerHTML = `<span style="color:var(--red)">✗ ${esc(err.message)}</span>`;
+      $('ghState').innerHTML = badTxt(esc(err.message));
       return false;
     }
   }
@@ -1114,7 +1118,7 @@
     lastSessions = list;
     const best = BZ.bestSession(list);
     const running = list.filter((s) => s.status !== 'completed').length;
-    $('optDotLabel').textContent = running ? `Optimiser (☁ ${running})` : 'Optimiser';
+    $('optDotLabel').textContent = running ? `Optimiser (${running} en cours)` : 'Optimiser';
     if (!list.length) { $('sessList').innerHTML = '<p class="hint">Aucune session pour l\'instant : lancez-en une ci-dessus.</p>'; $('bestCard').hidden = true; return; }
     const card = (s) => {
       const r = s.result;
@@ -1143,12 +1147,12 @@
         actions.push(`<button class="btn" data-act="blk" data-id="${s.id}" type="button">.blk</button>`);
       }
       if (s.status !== 'completed') actions.push(`<button class="btn ghost" data-act="cancel" data-id="${s.id}" type="button">Arrêter</button>`);
-      if (s.url) actions.push(`<a class="btn ghost" href="${esc(s.url)}" target="_blank" rel="noopener">GitHub ↗</a>`);
+      if (s.url) actions.push(`<a class="btn ghost" href="${esc(s.url)}" target="_blank" rel="noopener">GitHub${ic('external')}</a>`);
       return `<div class="sess${best && best.id === s.id ? ' best' : ''}">
         <div class="sess-head"><span class="sess-name">${esc(s.nom)}</span>${badge}</div>
         <div class="sess-meta">${meta}</div>${bar}
         ${r ? `<div class="sess-head"><span>${r.termine ? 'Meilleur score' : 'Meilleur score (point d\'étape)'}</span><span class="sess-score">${r.score.toFixed(1)} pts</span></div>
-        <div class="sess-meta">Bascules espérées ${r.bascules.toFixed(2)} · LEAVE ${r.leave ? '✓' : '✗'} · PARK ${r.park ? '✓' : '✗'} · plan de ${r.duree.toFixed(1)} s · ${r.fautes.length ? 'fautes : ' + esc(r.fautes.join(', ')) : 'aucune faute'}</div>` : ''}
+        <div class="sess-meta">Bascules espérées ${r.bascules.toFixed(2)} · LEAVE ${r.leave ? 'oui' : 'non'} · PARK ${r.park ? 'oui' : 'non'} · plan de ${r.duree.toFixed(1)} s · ${r.fautes.length ? 'fautes : ' + esc(r.fautes.join(', ')) : 'aucune faute'}</div>` : ''}
         <div class="row">${actions.join('')}</div></div>`;
     };
     $('sessList').innerHTML = list.map(card).join('');
@@ -1167,7 +1171,7 @@
       renderSessions(await cloud.sessions());
       $('sessUpdated').textContent = 'Mis à jour à ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + ' (actualisation automatique chaque minute).';
     } catch (err) {
-      if (!silent) $('sessUpdated').textContent = '✗ ' + err.message;
+      if (!silent) $('sessUpdated').innerHTML = badTxt(esc(err.message));
     }
   }
   $('sessRefresh').addEventListener('click', () => (cloud ? refreshSessions() : ghConnect(false)));
@@ -1201,11 +1205,11 @@
     $('sessLaunchStatus').textContent = 'Lancement…';
     try {
       await cloud.launch(nom, minutes, { version: 1, nom, minutes, robot, game, plan: myPlan, keepOrder: $('keepOrder').checked });
-      $('sessLaunchStatus').innerHTML = `<span class="ok">✓ Session « ${esc(nom)} » lancée pour ${minutes} min.</span> Elle apparaît dans la liste d'ici quelques secondes. Vous pouvez éteindre l'ordinateur.`;
+      $('sessLaunchStatus').innerHTML = okTxt(`Session « ${esc(nom)} » lancée pour ${minutes} min.`) + ` Elle apparaît dans la liste d'ici quelques secondes. Vous pouvez éteindre l'ordinateur.`;
       setTimeout(() => refreshSessions(), 6000);
       setTimeout(() => refreshSessions(), 20000);
     } catch (err) {
-      $('sessLaunchStatus').innerHTML = `<span style="color:var(--red)">✗ ${esc(err.message)}</span>`;
+      $('sessLaunchStatus').innerHTML = badTxt(esc(err.message));
     } finally {
       $('sessLaunch').disabled = false;
     }
@@ -1274,14 +1278,14 @@
     }),
     proposePlan(plan, why, r) {
       const cur = simulate(myPlan);
-      const card = chatCard(`<h4>📋 Plan proposé : ${r.expected.toFixed(1)} pts · ${r.endT.toFixed(1)} s</h4>` +
+      const card = chatCard(`<h4>${ic('list')}Plan proposé : ${r.expected.toFixed(1)} pts · ${r.endT.toFixed(1)} s</h4>` +
         `<div class="hint">Votre plan : ${cur ? cur.expected.toFixed(1) + ' pts · ' + cur.endT.toFixed(1) + ' s' : '–'} · 2 bascules : ${Math.round(r.tipsAtLeast[2] * 100)} % · fautes : ${r.faults.length ? r.faults.map((f) => f.rule).join(', ') : 'aucune'}</div>` +
         `<div>${mdLite(why)}</div><div class="row"><button class="btn" data-a="see" type="button">Voir sur le terrain</button><button class="btn primary" data-a="apply" type="button">Appliquer</button><button class="btn ghost" data-a="skip" type="button">Ignorer</button></div>`);
       card.addEventListener('click', (e) => {
         const b = e.target.closest('[data-a]');
         if (!b) return;
         if (b.dataset.a === 'see') { stopTraining(); aiPreview = { result: r, plan: clone(plan) }; resim(); pushState(); return; }
-        if (b.dataset.a === 'apply') { stopTraining(); aiPreview = { result: r, plan: clone(plan) }; keepAi(); card.querySelector('.row').innerHTML = '<span class="ok">✓ Appliqué (↶ pour annuler)</span>'; }
+        if (b.dataset.a === 'apply') { stopTraining(); aiPreview = { result: r, plan: clone(plan) }; keepAi(); card.querySelector('.row').innerHTML = okTxt('Appliqué (Annuler pour revenir)'); }
         else card.querySelector('.row').innerHTML = '<span class="hint">Ignoré</span>';
         card.classList.add('done');
       });
@@ -1289,20 +1293,20 @@
     proposeSettings(list, why) {
       const before = list.map((c) => ({ chemin: c.chemin, valeur: readSetting(c.chemin) }));
       const fmt = (v) => esc(Array.isArray(v) ? v.join(' / ') : String(v));
-      const card = chatCard(`<h4>⚙️ Réglages proposés</h4><div>${mdLite(why)}</div><table>${list.map((c, i) => `<tr><td class="mono">${esc(c.chemin)}</td><td>${fmt(before[i].valeur)}</td><td>→</td><td><b>${fmt(c.valeur)}</b></td></tr>`).join('')}</table>` +
+      const card = chatCard(`<h4>${ic('sliders')}Réglages proposés</h4><div>${mdLite(why)}</div><table>${list.map((c, i) => `<tr><td class="mono">${esc(c.chemin)}</td><td>${fmt(before[i].valeur)}</td><td>→</td><td><b>${fmt(c.valeur)}</b></td></tr>`).join('')}</table>` +
         '<div class="row"><button class="btn primary" data-a="apply" type="button">Appliquer</button><button class="btn ghost" data-a="skip" type="button">Ignorer</button></div>');
       card.addEventListener('click', (e) => {
         const b = e.target.closest('[data-a]');
         if (!b) return;
         const row = card.querySelector('.row');
-        if (b.dataset.a === 'apply') { applySettings(list); row.innerHTML = '<span class="ok">✓ Appliqué</span> <button class="btn" data-a="undo" type="button">Annuler</button>'; }
+        if (b.dataset.a === 'apply') { applySettings(list); row.innerHTML = okTxt('Appliqué') + ' <button class="btn" data-a="undo" type="button">Annuler</button>'; }
         else if (b.dataset.a === 'undo') { applySettings(before); row.innerHTML = '<span class="hint">Annulé</span>'; card.classList.add('done'); }
         else { row.innerHTML = '<span class="hint">Ignoré</span>'; card.classList.add('done'); }
       });
     },
   });
 
-  const TOOL_TXT = { simuler_plan: '🔧 essaie une variante', proposer_plan: '📋 propose un plan', lire_reglages: '🔎 lit les réglages', modifier_reglages: '⚙️ propose des réglages' };
+  const TOOL_TXT = { simuler_plan: ['wrench', 'essaie une variante'], proposer_plan: ['list', 'propose un plan'], lire_reglages: ['search', 'lit les réglages'], modifier_reglages: ['sliders', 'propose des réglages'] };
   async function chatSend(text) {
     text = (text || '').trim();
     if (!text) return;
@@ -1323,7 +1327,8 @@
         if (bubble) { bubble.classList.remove('typing'); bubble.innerHTML = mdLite(buf); bubble = null; buf = ''; }
         let extra = '';
         if (name === 'simuler_plan' && !res.is_error) { try { const r = JSON.parse(res.content); extra = ` → ${r.score_espere} pts, ${r.duree_s} s`; } catch (e) { /* rien */ } }
-        chatMsg('tool', esc((TOOL_TXT[name] || name) + extra + (res.is_error ? ' (erreur : ' + res.content.replace(/^Erreur : /, '') + ')' : '')));
+        const [tn, tt] = TOOL_TXT[name] || ['wrench', name];
+        chatMsg('tool', ic(tn) + esc(tt + extra + (res.is_error ? ' (erreur : ' + res.content.replace(/^Erreur : /, '') + ')' : '')));
       },
       onDone() { if (bubble) { bubble.classList.remove('typing'); bubble.innerHTML = mdLite(buf); } },
       onError(msg) { if (bubble) { bubble.classList.remove('typing'); } chatMsg('err', esc(msg)); },

@@ -365,7 +365,7 @@
         ctx.beginPath(); ctx.arc(...c, R, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
         ctx.beginPath(); ctx.arc(...c, R * 0.45, 0, 2 * Math.PI); ctx.fillStyle = pc; ctx.fill();
         // pastille : nombre de balles + précision
-        const txt = (n.n ? '×' + n.n : '×tout') + (sh && sh.p > 0 ? ' · ' + Math.round(sh.p * 100) + '%' : ' · ✗');
+        const txt = (n.n ? '×' + n.n : '×tout') + (sh && sh.p > 0 ? ' · ' + Math.round(sh.p * 100) + '%' : ' · 0%');
         font(Math.max(11, s * 2.4), 750);
         const tw = ctx.measureText(txt).width + 12, th = Math.max(16, s * 3.6);
         const bx = c[0] + R + 4, by = c[1] - R - th * 0.6;
@@ -390,7 +390,13 @@
         const lx = c[0] - R - 2, ly = c[1] + R + 2;
         ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(lx, ly, Math.max(7, s * 1.9), 0, 2 * Math.PI); ctx.fill();
         ctx.fillStyle = '#fff'; ctx.fillText(String(num), lx, ly + 0.5);
-        if (n.a && n.a.lock) ctx.fillText('🔒', c[0] + R + 6, c[1] + R + 4);
+        if (n.a && n.a.lock) {
+          // petit cadenas dessiné
+          const k = Math.max(5, s * 1.4), lx2 = c[0] + R + 2, ly2 = c[1] + R - 2;
+          ctx.fillStyle = '#111'; ctx.strokeStyle = '#111'; ctx.lineWidth = Math.max(1.4, k * 0.28);
+          ctx.beginPath(); ctx.arc(lx2 + k * 0.5, ly2, k * 0.32, Math.PI, 0); ctx.stroke();
+          ctx.fillRect(lx2, ly2, k, k * 0.8);
+        }
       }
       // nom donné par l'utilisateur (fiche du double-clic)
       const note = n.a ? n.a.note : n.note;

@@ -70,7 +70,7 @@
     if (!this.best || g.result.fitness > this.best.result.fitness) this.best = g;
   };
 
-  // Mutation « douce » : ne change ni l'ordre ni la nature des étapes, ne touche pas aux étapes 🔒.
+  // Mutation « douce » : ne change ni l'ordre ni la nature des étapes, ne touche pas aux étapes verrouillées.
   // Elle déplace les points (dans leur zone), courbe les flèches, change le nombre de balles,
   // ajoute ou retire des points de passage automatiques, et bouge un peu le départ et le PARK.
   Optimizer.prototype.softMutate = function (g) {
