@@ -58,6 +58,9 @@ L'écran est en deux parties : **le terrain en grand** à gauche, **une barre à
 | 🧭 Orbite (3D) | comme en CAO : glisser = tourner, clic droit ou Maj = déplacer, molette = zoom, vues Dessus / Face / Côté / Iso. |
 
 ↶ ↷ annulent / rétablissent (Ctrl+Z / Ctrl+Y), 🗑 ou Suppr effacent la sélection.
+**Double-clic** (ou double-tap) sur un objet du terrain : une fiche dit ce que c'est (étape, tir, zone,
+PARK, départ, courbe), avec ses infos (chance de marquer, horaire…). On peut lui donner un **nom**, qui
+s'affiche sur le terrain et dans « Mon plan », le régler, le déplacer plus tôt / plus tard ou le **supprimer**.
 
 En bas à gauche, **📋 Mon plan** liste les étapes avec leur temps : on peut les monter / descendre,
 les supprimer, ou les **verrouiller 🔒** pour que l'IA n'y touche pas. Le plan est gardé dans le

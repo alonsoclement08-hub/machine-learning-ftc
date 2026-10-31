@@ -377,3 +377,21 @@ html, body { overflow: hidden; }
 .island.dragging { transition: none; opacity: 0.92; }
 .island.dragging .isl-grip { cursor: grabbing; }
 .island.moved { transform: none !important; right: auto !important; max-width: calc(100% - 12px) !important; }
+
+/* Fiche d'un objet (double-clic sur le terrain) */
+.ocard {
+  position: absolute; z-index: 7; width: 290px; max-width: calc(100% - 12px); background: #111317; color: #f2f1ec;
+  border-radius: 16px; padding: 10px 12px 12px; box-shadow: 0 10px 34px rgba(0, 0, 0, 0.35); font-size: 13px;
+}
+.ocard[hidden] { display: none; }
+.oc-head { display: flex; align-items: center; gap: 8px; }
+.oc-head b { flex: 1; font-size: 14px; }
+.oc-ic { font-size: 18px; width: 24px; text-align: center; }
+.oc-x { font: inherit; background: transparent; color: #9c9a94; border: 0; border-radius: 8px; width: 28px; height: 28px; cursor: pointer; }
+.oc-x:hover { background: rgba(255, 255, 255, 0.12); color: #f2f1ec; }
+.oc-what { margin: 6px 0 4px; color: #cfcdc6; line-height: 1.4; }
+.oc-info { margin: 4px 0 6px; padding: 0; list-style: none; color: #9c9a94; font-size: 12px; line-height: 1.5; }
+.oc-note { color: #9c9a94; margin: 6px 0 2px; }
+.oc-note input { background: rgba(255, 255, 255, 0.1); color: #f2f1ec; border-color: transparent; padding: 5px 8px; }
+.ocard .opts { padding-top: 6px; }
+.chip.off { opacity: 0.35; cursor: default; }

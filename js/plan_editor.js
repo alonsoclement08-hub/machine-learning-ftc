@@ -50,7 +50,7 @@
     });
     if (plan.park && plan.park.on) {
       const p = BZ.parkPose(world, plan.park.t, 0);
-      nodes.push({ kind: 'park', i: 'park', x: p.x, y: p.y, from: prev, ctrl: plan.park.ctrl || null });
+      nodes.push({ kind: 'park', i: 'park', x: p.x, y: p.y, from: prev, ctrl: plan.park.ctrl || null, note: plan.park.note || '' });
     }
     return nodes;
   };

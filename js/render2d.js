@@ -294,7 +294,7 @@
       ctx.setLineDash(z.kind === 'passage' || z.draft ? [6, 4] : []);
       ctx.strokeRect(x0, y0, w, h); ctx.setLineDash([]);
       font(s * 2.1, 700); ctx.fillStyle = z.color; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-      ctx.fillText((BZ.ZONE_KINDS[z.kind] || {}).nom || '', x0 + 4, y0 + 3);
+      ctx.fillText(z.note || (BZ.ZONE_KINDS[z.kind] || {}).nom || '', x0 + 4, y0 + 3);
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       if (z.id && isSel('zone', 0, z.id)) {
         ctx.fillStyle = '#fff'; ctx.strokeStyle = z.color; ctx.lineWidth = 2;
@@ -391,6 +391,16 @@
         ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(lx, ly, Math.max(7, s * 1.9), 0, 2 * Math.PI); ctx.fill();
         ctx.fillStyle = '#fff'; ctx.fillText(String(num), lx, ly + 0.5);
         if (n.a && n.a.lock) ctx.fillText('🔒', c[0] + R + 6, c[1] + R + 4);
+      }
+      // nom donné par l'utilisateur (fiche du double-clic)
+      const note = n.a ? n.a.note : n.note;
+      if (note) {
+        font(Math.max(10, s * 2.1), 700);
+        const tw = ctx.measureText(note).width + 10, th = Math.max(15, s * 3.2);
+        const bx = c[0] - tw / 2, by = c[1] + R + Math.max(8, s * 2.4);
+        ctx.fillStyle = 'rgba(17,19,23,0.82)'; ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(bx, by, tw, th, th / 2); else ctx.rect(bx, by, tw, th);
+        ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillText(note, c[0], by + th / 2 + 0.5);
       }
     }
     ctx.restore();

@@ -243,6 +243,7 @@
     if (view3d.ready) view3d.setState(st);
     updateKpis();
     renderSteps();
+    renderCard();
     renderIsland();
     renderAiBar();
     if (pageIdx === 2) refreshExport();
@@ -318,8 +319,23 @@
   $('redoBtn').addEventListener('click', () => editor.redo());
   $('delBtn').addEventListener('click', () => editor.deleteSel());
 
+  // Double-clic (ou double-tap) sur un objet du plan : sa fiche (ce que c'est, nom, actions).
+  let lastTap = null;
+  let card = null; // fiche ouverte : {px, py} = point du double-clic dans le terrain (pixels CSS)
   const onPointer = (kind, x, y, r, e) => {
     if (aiPreview) { if (kind === 'down') toast('Aperçu de l\'IA : gardez-le ou revenez à votre plan avant de modifier.'); return false; }
+    if (kind === 'down') {
+      const now = performance.now(), prev = lastTap;
+      lastTap = { t: now, x, y, undo: editor.undoStack.length };
+      if (prev && now - prev.t < 400 && G.dist(x, y, prev.x, prev.y) < r * 1.5) {
+        lastTap = null;
+        // avec un outil de dessin, le premier clic a pu poser un objet par-dessus : on l'annule
+        if (editor.tool !== 'select' && editor.undoStack.length === prev.undo + 1) { editor.undo(); editor.redoStack.pop(); }
+        const h = editor.hit(x, y, r);
+        if (h) { openCard(h, e); return true; }
+      }
+      if (card) closeCard();
+    }
     return editor.pointer(kind, x, y, r, e);
   };
   view2d.onPointer = onPointer;
@@ -328,6 +344,7 @@
   document.addEventListener('keydown', (e) => {
     if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
     if (aiPreview) return;
+    if (card && e.key === 'Escape') { closeCard(); e.preventDefault(); return; }
     if (editor.key(e)) e.preventDefault();
   });
 
@@ -350,7 +367,18 @@
     else if (t === 'zone') h = `<span class="lbl">Type</span>${kindChips(editor.zoneKind)}<span class="lbl">Couleur</span>${swatches(editor.zoneColor)}<span class="lbl">${esc(BZ.ZONE_KINDS[editor.zoneKind].aide)} · glissez sur le terrain.</span>`;
     else if (t === 'start') h = `${chip('rot:90', '⟲ 90°')}${chip('rot:-90', '⟳ 90°')}${chip('start:free', 'Laisser l\'IA choisir', !myPlan.startLock)}<span class="lbl">Bougez la souris : le robot se colle au mur. R / Q pour tourner.</span>`;
     else if (t === 'orbit') h = `${chip('view:top', 'Dessus')}${chip('view:front', 'Face')}${chip('view:side', 'Côté')}${chip('view:iso', 'Iso')}<span class="lbl">Glisser = tourner · clic droit ou Maj = déplacer · molette = zoom</span>`;
-    else if (sel) {
+    else if (sel && !card) h = selOpts(sel);
+    $('islOpts').innerHTML = h ? `<div><div class="opts">${h}</div></div>` : '<div></div>';
+    $('island').classList.toggle('open', !!h);
+    $('undoBtn').disabled = !editor.undoStack.length;
+    $('redoBtn').disabled = !editor.redoStack.length;
+    $('delBtn').disabled = !sel;
+  }
+
+  // Réglages de l'objet sélectionné (dans l'île, ou dans la fiche du double-clic).
+  function selOpts(sel) {
+    let h = '';
+    {
       if (sel.type === 'node' && sel.i === 'park') h = `<span class="lbl">PARK</span>${chip('lock', myPlan.park.lock ? '🔒 Verrouillé' : '🔓 Libre', myPlan.park.lock)}${myPlan.park.ctrl ? chip('straight', 'Redresser la flèche') : ''}${chip('del', 'Retirer le PARK', false, 'danger')}`;
       else if (sel.type === 'node') {
         const a = myPlan.actions[sel.i];
@@ -368,11 +396,7 @@
         if (z) h = `<span class="lbl">Zone</span>${kindChips(z.kind)}${swatches(z.color)}${chip('del', 'Supprimer', false, 'danger')}`;
       } else if (sel.type === 'start') h = `<span class="lbl">Départ</span>${chip('rot:90', '⟲ 90°')}${chip('rot:-90', '⟳ 90°')}${chip('start:free', myPlan.startLock ? '🔒 Fixé (libérer)' : '🔓 Choisi par l\'IA', !!myPlan.startLock)}`;
     }
-    $('islOpts').innerHTML = h ? `<div><div class="opts">${h}</div></div>` : '<div></div>';
-    $('island').classList.toggle('open', !!h);
-    $('undoBtn').disabled = !editor.undoStack.length;
-    $('redoBtn').disabled = !editor.redoStack.length;
-    $('delBtn').disabled = !sel;
+    return h;
   }
 
   function islandAction(act, value) {
@@ -387,6 +411,15 @@
     if (k === 'start') { editor.commit((p) => { p.startLock = !p.startLock; }); return; }
     if (k === 'del') { editor.deleteSel(); return; }
     if (!sel) return;
+    if (k === 'move') {
+      editor.commit((p) => {
+        const A = p.actions, i = sel.i, j = v === 'up' ? i - 1 : i + 1;
+        if (typeof i !== 'number' || j < 0 || j >= A.length) return false;
+        [A[i], A[j]] = [A[j], A[i]];
+        editor.sel = { type: 'node', i: j };
+      });
+      return;
+    }
     editor.commit((p, zones) => {
       const target = sel.type === 'node' || sel.type === 'ctrl' ? (sel.i === 'park' ? p.park : p.actions[sel.i]) : null;
       if (k === 'n' && target) { if (+v) target.n = +v; else delete target.n; }
@@ -447,9 +480,130 @@
   const islRO = new ResizeObserver(placeIsland);
   islRO.observe(stageEl); islRO.observe(island);
 
+  // ---------------- Fiche d'un objet (double-clic) ----------------
+  // Dit ce qu'est l'objet, permet de lui donner un nom, de le régler et de le supprimer.
+  const cardEl = document.createElement('div');
+  cardEl.className = 'ocard'; cardEl.hidden = true;
+  cardEl.setAttribute('role', 'dialog');
+  $('stage').appendChild(cardEl);
+
+  function openCard(h, e) {
+    editor.sel = { type: h.type, i: h.i, id: h.id };
+    const sr = stageEl.getBoundingClientRect();
+    card = { px: e.clientX - sr.left, py: e.clientY - sr.top };
+    if (editor.tool !== 'select') setTool('select');
+    pushState();
+  }
+  function closeCard() {
+    if (!card) return;
+    card = null;
+    cardEl.hidden = true;
+    renderIsland();
+  }
+
+  // Ce qu'est l'objet sélectionné, en clair. `target` : où ranger son nom (null = pas de nom).
+  function describeSel(sel) {
+    const r = best, w = worldNow();
+    const timing = (st) => (st ? (st.done ? `⏱ De ${st.t0.toFixed(1)} à ${st.t1.toFixed(1)} s pendant l'AUTO` : '⚠ Étape sautée par la simulation (plus le temps, ou impossible)') : '');
+    const lockTxt = (o) => (o.lock ? '🔒 Verrouillée : l\'IA ne la modifie pas' : '🔓 Libre : l\'IA peut l\'ajuster');
+    if (sel.type === 'node' && sel.i === 'park') {
+      const p = myPlan.park;
+      if (!p || !p.on) return null;
+      return { ic: '🅿', title: 'PARK', target: p,
+        what: 'Fin de l\'AUTO : le robot se gare dans la LOADING ZONE pour marquer les points de PARK.',
+        info: [timing(r && r.parkStep), lockTxt(p)] };
+    }
+    if (sel.type === 'node') {
+      const a = myPlan.actions[sel.i];
+      if (!a) return null;
+      const info = [timing(r && r.steps ? r.steps[sel.i] : null)];
+      let title, what;
+      if (a.type === 'tir') {
+        const sh = BZ.shotInfo(w, robot, a.x, a.y);
+        title = 'Tir';
+        what = `Le robot s'arrête ici et lance ${a.n ? a.n + ' balle' + (a.n > 1 ? 's' : '') : 'toutes ses balles'} dans la CELL.`;
+        info.push(sh.cell ? `🎯 Vise la ${sh.cellIdx === 0 ? 'CELL du haut' : 'CELL d\'après bascule'} · chance de marquer : ${Math.round(sh.p * 100)} %` : '⚠ Aucune CELL atteignable d\'ici : rapprochez le point de tir.');
+      } else if (a.type === 'via') {
+        title = a.auto ? 'Point de passage (ajouté par l\'IA)' : 'Point de passage';
+        what = 'Le robot passe par ce point en allant vers l\'étape suivante : pour contourner un obstacle ou choisir son chemin.';
+      } else if (a.type === 'ramasse') {
+        title = 'Ramassage';
+        what = `Le robot va chercher des balles : ${srcName(a.src)}.`;
+      } else { title = a.type; what = ''; }
+      const z = a.zone && game.zones.find((q) => q.id === a.zone);
+      if (z) info.push(`▭ Rattachée à : ${z.note || BZ.ZONE_KINDS[z.kind].nom}`);
+      info.push(lockTxt(a));
+      return { ic: ICON[a.type] || '•', title: `Étape ${sel.i + 1} · ${title}`, what, info, target: a };
+    }
+    if (sel.type === 'ctrl') {
+      return { ic: '◆', title: 'Courbe de flèche', target: null,
+        what: `Poignée de la flèche qui mène ${sel.i === 'park' ? 'au PARK' : 'à l\'étape ' + (sel.i + 1)}. Glissez-la pour courber le trajet ; « Redresser » remet la flèche droite.`,
+        info: [] };
+    }
+    if (sel.type === 'zone') {
+      const z = game.zones.find((q) => q.id === sel.id);
+      if (!z) return null;
+      const k = BZ.ZONE_KINDS[z.kind], q = BZ.zoneRect(z);
+      const L = q.x1 - q.x0, H = q.y1 - q.y0;
+      const users = myPlan.actions.map((a, i) => (a.zone === z.id ? i + 1 : 0)).filter(Boolean);
+      return { ic: '▭', title: k.nom, target: z,
+        what: k.aide.charAt(0).toUpperCase() + k.aide.slice(1) + '.',
+        info: [`📐 ${Math.round(L)} × ${Math.round(H)} in (${Math.round(L * 2.54)} × ${Math.round(H * 2.54)} cm)`,
+          users.length ? `Utilisée par l'étape ${users.join(', ')}` : (z.kind === 'interdite' ? '' : 'Rattachée à aucune étape')] };
+    }
+    if (sel.type === 'start') {
+      return { ic: '🤖', title: 'Départ du robot', target: null,
+        what: 'Position et orientation du robot au début de l\'AUTO, collé au mur (règle G304).',
+        info: [myPlan.startLock ? '🔒 Fixé par vous' : '🔓 L\'IA peut choisir un meilleur départ', 'R / Q ou les boutons ⟲ ⟳ pour le tourner.'] };
+    }
+    return null;
+  }
+
+  function renderCard() {
+    if (!card) return;
+    const sel = editor.sel, d = sel && !aiPreview ? describeSel(sel) : null;
+    if (!d) { closeCard(); return; }
+    const reorder = sel.type === 'node' && typeof sel.i === 'number'
+      ? chip('move:up', '↑ Plus tôt', false, sel.i > 0 ? '' : 'off') + chip('move:down', '↓ Plus tard', false, sel.i < myPlan.actions.length - 1 ? '' : 'off') : '';
+    const opts = selOpts(sel);
+    cardEl.innerHTML = `<div class="oc-head"><span class="oc-ic">${d.ic}</span><b>${esc(d.title)}</b><button class="oc-x" type="button" data-act="close" aria-label="Fermer">✕</button></div>` +
+      `<p class="oc-what">${esc(d.what)}</p>` +
+      (d.info.filter(Boolean).length ? `<ul class="oc-info">${d.info.filter(Boolean).map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : '') +
+      (d.target ? `<label class="oc-note">Nom (ce que c'est)<input type="text" maxlength="40" data-note placeholder="ex. : tir depuis le coin" value="${esc(d.target.note || '')}"></label>` : '') +
+      `<div class="opts">${reorder}${opts}</div>`;
+    cardEl.hidden = false;
+    // à côté du double-clic, sans sortir du terrain
+    const W = stageEl.clientWidth, H = stageEl.clientHeight, cw = cardEl.offsetWidth, ch = cardEl.offsetHeight;
+    let x = card.px + 14, y = card.py + 14;
+    if (x + cw > W - 6) x = card.px - cw - 14;
+    if (y + ch > H - 6) y = H - ch - 6;
+    cardEl.style.left = Math.max(6, x) + 'px';
+    cardEl.style.top = Math.max(6, y) + 'px';
+  }
+  cardEl.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-act]');
+    if (!b || b.tagName === 'SELECT' || b.classList.contains('off')) return;
+    if (b.dataset.act === 'close') { closeCard(); return; }
+    islandAction(b.dataset.act);
+  });
+  cardEl.addEventListener('change', (e) => { const s2 = e.target.closest('select[data-act]'); if (s2) islandAction(s2.dataset.act, s2.value); });
+  // le nom s'enregistre en direct, sans relancer l'optimisation
+  cardEl.addEventListener('input', (e) => {
+    if (!e.target.matches('[data-note]')) return;
+    const d = editor.sel && describeSel(editor.sel);
+    if (!d || !d.target) return;
+    const v = e.target.value.trim();
+    if (v) d.target.note = v; else delete d.target.note;
+    persistPlan(); persist();
+    editor.app.changed(true);
+    renderSteps();
+  });
+  cardEl.addEventListener('keydown', (e) => { if (e.key === 'Escape' || (e.key === 'Enter' && e.target.matches('[data-note]'))) { e.stopPropagation(); closeCard(); } });
+
   // ---------------- Liste des étapes ----------------
   const ICON = { tir: '◎', via: '➜', ramasse: '⬚', park: '🅿' };
   function stepText(a) {
+    if (a.note) return a.note;
     if (a.type === 'tir') return `Tir ${a.n ? '×' + a.n : '(toutes)'}` + (a.zone ? ' · zone' : '');
     if (a.type === 'via') return a.auto ? 'Passage (IA)' : 'Point de passage';
     if (a.type === 'ramasse') return 'Ramasser · ' + srcName(a.src);
@@ -469,7 +623,7 @@
     });
     if (plan.park && plan.park.on) {
       const ps = r && r.parkStep;
-      items.push(`<li class="${sel.i === 'park' ? 'sel' : ''}" data-i="park"><span class="pi">🅿</span><span class="ptxt">PARK (LOADING ZONE)<br><span class="pt">${ps ? ps.t0.toFixed(1) + '–' + ps.t1.toFixed(1) + ' s' : ''}</span></span></li>`);
+      items.push(`<li class="${sel.i === 'park' ? 'sel' : ''}" data-i="park"><span class="pi">🅿</span><span class="ptxt">${plan.park.note ? esc(plan.park.note) : 'PARK (LOADING ZONE)'}<br><span class="pt">${ps ? ps.t0.toFixed(1) + '–' + ps.t1.toFixed(1) + ' s' : ''}</span></span></li>`);
     }
     if (!items.length) items.push('<li class="chances">Choisissez un outil dans l\'île en haut et dessinez votre AUTO sur le terrain.</li>');
     if (r) {
