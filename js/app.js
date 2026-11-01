@@ -1320,6 +1320,16 @@
       if (gm) await useGeminiKey(k); else await useGithubToken(k);
       return true;
     }
+    // « utilise gemini-2.5-flash-lite » : changé ici, sans l'IA (marche même quota épuisé)
+    const mod = text.match(/^(?:utilise|prends|passe (?:à|a|sur))\s+(?:le modèle\s+)?(gemini[\w.-]*)\s*\.?$/i);
+    if (mod) {
+      chatMsg('me', esc(text));
+      const want = mod[1].toLowerCase();
+      const m = chatModels.find((x) => x.id === want) || chatModels.find((x) => x.id.startsWith(want));
+      if (m) { chatCfg.model = m.id; saveChat(); chatMsg('ai', `C'est noté, j'utilise maintenant ${m.nom || m.id}.`); }
+      else chatMsg('err', 'Modèle inconnu. Disponibles : ' + chatModels.map((x) => x.id).join(', '));
+      return true;
+    }
     const code = text.match(/^code d['’]équipe\s*:?\s*(\S+)$/i);
     if (code) { chatMsg('me', 'Code d\'équipe : ••••'); chatCfg.code = code[1]; saveChat(); chatMsg('ai', 'Code d\'équipe enregistré sur cet appareil.'); return true; }
     if (/^(oublie|efface|supprime)\s+(ma|la)\s+clé/i.test(text)) { chatMsg('me', esc(text)); chatCfg.key = ''; saveChat(); chatMsg('ai', 'Clé Gemini oubliée sur cet appareil.' + (chatAuth() ? ' J\'utilise maintenant la clé de l\'équipe.' : ' Collez une nouvelle clé pour continuer.')); return true; }
@@ -1529,6 +1539,12 @@
         if (name === 'simuler_plan' && !res.is_error) { try { const r = JSON.parse(res.content); extra = ` → ${r.score_espere} pts, ${r.duree_s} s`; } catch (e) { /* rien */ } }
         const [tn, tt] = TOOL_TXT[name] || ['wrench', name];
         if (toolLine) toolLine.innerHTML = ic(tn) + esc(tt + extra + (res.is_error ? ' (erreur : ' + res.content.replace(/^Erreur : /, '') + ')' : ''));
+      },
+      // quota gratuit par minute : l'assistant attend et réessaie tout seul
+      onWait(sec) {
+        if (bubble) { bubble.classList.remove('typing'); bubble.innerHTML = mdLite(buf); bubble = null; buf = ''; }
+        const w = chatMsg('tool', ic('clock') + esc(`quota gratuit de Google atteint pour cette minute : je réessaie dans ${sec} s…`));
+        setTimeout(() => w.remove(), sec * 1000 + 500);
       },
       onDone() { if (bubble) { bubble.classList.remove('typing'); bubble.innerHTML = mdLite(buf); } },
       onError(msg) { if (bubble) { bubble.classList.remove('typing'); } chatMsg('err', esc(msg)); },

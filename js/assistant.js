@@ -400,7 +400,7 @@
     return { parts, finish, block };
   };
 
-  // Envoie un message et fait la boucle d'outils. ui : { onText(delta), onTurnStart(), onToolStart(name, input), onTool(name, input, res), onDone(), onError(msg) }
+  // Envoie un message et fait la boucle d'outils. ui : { onText(delta), onTurnStart(), onToolStart(name, input), onTool(name, input, res), onWait(secondes), onDone(), onError(msg) }
   Assistant.prototype.send = async function (text, auth, model, ui) {
     if (this.busy) return;
     this.busy = true;
@@ -417,6 +417,7 @@
       toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
       generationConfig: { maxOutputTokens: 16000 },
     });
+    let waits = 0;
     try {
       for (let turn = 0; turn < 12; turn++) {
         ui.onTurnStart && ui.onTurnStart();
@@ -426,6 +427,19 @@
         } catch (err) {
           // ancien format de schéma : on réessaie une fois avec le schéma simplifié
           if (err.status === 400 && !this.legacySchema && /parameters_?json_?schema/i.test(err.message + err.detail)) { this.legacySchema = true; turn--; continue; }
+          // quota par minute dépassé (offre gratuite) : on attend le délai donné par Google et on réessaie
+          if (err.status === 429 && waits < 3 && !/per.?day|PerDay/i.test(err.message + err.detail)) {
+            const m = /"retryDelay":"(\d+(?:\.\d+)?)s"/.exec(err.detail || '');
+            const sec = Math.min(60, Math.max(5, Math.ceil(m ? +m[1] : 15 * (waits + 1))));
+            waits++;
+            ui.onWait && ui.onWait(sec);
+            await new Promise((ok, ko) => {
+              const t = setTimeout(ok, sec * 1000);
+              ctrl.signal.addEventListener('abort', () => { clearTimeout(t); const e = new Error('arrêté'); e.name = 'AbortError'; ko(e); }, { once: true });
+            });
+            turn--;
+            continue;
+          }
           throw err;
         }
         if (out.block) { ui.onError('Gemini a bloqué cette demande (' + out.block + '). Reformulez-la.'); this.messages.length = n0; break; }
@@ -476,7 +490,7 @@
       if (err.status === 400 && /API key|API_KEY/i.test(m + err.detail)) return 'Clé API refusée : vérifiez-la (copiez-la en entier depuis aistudio.google.com).';
       if (err.status === 401 || err.status === 403) return "Cette clé n'a pas accès à l'API Gemini ou à ce modèle (vérifiez-la sur aistudio.google.com).";
       if (err.status === 404) return 'Modèle introuvable : choisissez-en un autre dans la liste.';
-      if (err.status === 429) return 'Trop de demandes ou quota gratuit épuisé : attendez un peu ou vérifiez votre compte Google AI Studio.';
+      if (err.status === 429) return /per.?day|PerDay/i.test(m + (err.detail || '')) ? 'Quota gratuit du jour épuisé pour ce modèle : réessayez demain, ou dites « utilise gemini-2.5-flash-lite » (autre quota).' : 'Trop de demandes en peu de temps (quota gratuit par minute) : attendez une minute puis réessayez.';
       if (err.status >= 500) return 'Le service Gemini a un problème, réessayez dans un moment.';
       return `Erreur de l'API Gemini (${err.status}) : ${m}`;
     }
