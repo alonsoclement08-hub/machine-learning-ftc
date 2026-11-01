@@ -1228,7 +1228,7 @@
   // relais de l'équipe (js/config.js) : utilisé quand personne n'a mis sa propre clé
   const relay = typeof window.BIOBUZZ_RELAIS_GEMINI === 'string' ? window.BIOBUZZ_RELAIS_GEMINI.trim() : '';
   const chatAuth = () => (chatCfg.key ? { key: chatCfg.key } : relay ? { relay, code: chatCfg.code || '' } : null);
-  if (relay) $('relayRow').hidden = false;
+  if (relay) { $('relayRow').hidden = false; $('chatKeyLbl').textContent = 'Votre propre clé API Gemini (facultatif : sinon, clé de l\'équipe)'; }
   $('chatCode').value = chatCfg.code || '';
   let chatModels = BZ.CHAT_MODELS.slice();
   function fillModels() {
@@ -1237,10 +1237,12 @@
     $('chatModel').value = chatCfg.model;
   }
   // avec une clé : la vraie liste des modèles Gemini de ce compte
-  async function loadModels() {
+  async function loadModels(fromSave) {
     if (!chatAuth()) return;
+    if (fromSave) $('chatKeyStatus').textContent = 'Vérification de la clé…';
     try {
       const list = await BZ.geminiModels(chatAuth());
+      if (fromSave) $('chatKeyStatus').innerHTML = okTxt(chatCfg.key ? 'Clé enregistrée et vérifiée : le chat est prêt.' : 'Relais de l\'équipe joignable : le chat est prêt.');
       if (list.length) {
         chatModels = list;
         if (!list.some((m) => m.id === chatCfg.model)) { chatCfg.model = (list.find((m) => /flash/i.test(m.id) && !/lite/i.test(m.id)) || list[0]).id; saveChat(); }
@@ -1249,6 +1251,7 @@
       }
     } catch (err) {
       $('chatModelHint').textContent = BZ.chatErrorText(err);
+      if (fromSave) { $('chatKeyStatus').innerHTML = badTxt(esc(BZ.chatErrorText(err))); $('chatSetup').open = true; }
       if (err.reason === 'CODE_EQUIPE') { $('chatSetup').open = true; }
     }
   }
@@ -1262,9 +1265,11 @@
   if (!chatAuth()) $('chatSetup').open = true;
   const saveChat = () => { try { localStorage.setItem(CHAT_KEY, JSON.stringify(chatCfg)); } catch (e) { /* rien */ } chatSetupLabel(); };
   loadModels();
-  $('chatSaveKey').addEventListener('click', () => { chatCfg.key = $('chatKey').value.trim(); chatCfg.code = $('chatCode').value.trim(); chatCfg.model = $('chatModel').value; saveChat(); $('chatSetup').open = false; loadModels(); });
+  $('chatSaveKey').addEventListener('click', () => { chatCfg.key = $('chatKey').value.trim(); chatCfg.code = $('chatCode').value.trim(); chatCfg.model = $('chatModel').value; saveChat(); loadModels(true).then(() => { if (/vérifiée|prêt/.test($('chatKeyStatus').textContent)) setTimeout(() => { $('chatSetup').open = false; }, 1200); }); });
+  $('chatKey').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('chatSaveKey').click(); } });
+  $('chatKeyShow').addEventListener('click', () => { const k = $('chatKey'); k.type = k.type === 'password' ? 'text' : 'password'; });
   $('chatModel').addEventListener('change', () => { chatCfg.model = $('chatModel').value; saveChat(); });
-  $('chatForget').addEventListener('click', () => { chatCfg.key = ''; $('chatKey').value = ''; saveChat(); try { localStorage.removeItem(CHAT_KEY); } catch (e) { /* rien */ } });
+  $('chatForget').addEventListener('click', () => { $('chatKeyStatus').textContent = 'Clé oubliée sur cet appareil.'; chatCfg.key = ''; $('chatKey').value = ''; saveChat(); try { localStorage.removeItem(CHAT_KEY); } catch (e) { /* rien */ } });
 
   const settingTarget = (chemin) => (chemin.startsWith('robot.') ? [robot, chemin.slice(6)] : [game, chemin.slice(6)]);
   const readSetting = (chemin) => { const [o, p] = settingTarget(chemin); return clone(getPath(o, p)); };

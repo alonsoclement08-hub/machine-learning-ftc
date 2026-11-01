@@ -527,3 +527,6 @@ label.check.small { font-size: 11.5px; color: var(--ink-2); white-space: nowrap;
   .toast { bottom: 46px; }
   .chatcard { min-height: calc(100dvh - 60px); }
 }
+
+.keyrow { display: flex; gap: 4px; align-items: center; }
+.keyrow input { flex: 1; }
