@@ -448,7 +448,7 @@
     try { j = await res.json(); } catch (e) { /* pas de JSON */ }
     if (!res.ok) throw ApiError(res.status, j);
     return (j.models || [])
-      .filter((m) => (m.supportedGenerationMethods || []).indexOf('generateContent') >= 0 && /gemini/i.test(m.name) && !/embedding|image|tts|audio|live|vision/i.test(m.name))
+      .filter((m) => (m.supportedGenerationMethods || []).indexOf('generateContent') >= 0 && /^models\/gemini-/i.test(m.name) && !/embedding|image|tts|audio|live|vision|transcribe|robotics|computer-use|customtools|nano|omni|lyria/i.test(m.name))
       .map((m) => ({ id: m.name.replace(/^models\//, ''), nom: m.displayName || m.name }));
   };
 
