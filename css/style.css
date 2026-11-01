@@ -440,8 +440,8 @@ label.check.small { font-size: 11.5px; color: var(--ink-2); white-space: nowrap;
 .pagetitle .ic { width: 15px; height: 15px; }
 
 /* ---------- Chat IA ---------- */
-#page-chat { display: flex; flex-direction: column; }
-.chatcard { flex: 1; display: flex; flex-direction: column; min-height: 420px; margin-bottom: 0; }
+/* le chat garde une hauteur fixe ; l'optimisation et les sessions suivent en dessous */
+.chatcard { display: flex; flex-direction: column; height: min(640px, calc(100vh - 150px)); height: min(640px, calc(100dvh - 150px)); min-height: 420px; }
 .chatlog { flex: 1; min-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 2px; }
 .msg { max-width: 92%; padding: 9px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 .msg.me { align-self: flex-end; background: var(--ink); color: var(--surface); border-bottom-right-radius: 4px; }
@@ -524,5 +524,5 @@ label.check.small { font-size: 11.5px; color: var(--ink-2); white-space: nowrap;
   .dock-head { height: 34px; padding: 0 10px; font-size: 13px; }
   .dock-head .hint { display: none; }
   .toast { bottom: 46px; }
-  .chatcard { min-height: 0; }
+  .chatcard { min-height: 0; height: calc(100dvh - 60px); }
 }

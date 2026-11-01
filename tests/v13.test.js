@@ -16,6 +16,7 @@ function fakeApp() {
     world: () => world, robot: () => robot, plan: () => plan, simulate: (p) => sim.run(p),
     settings: () => ({ ok: 1 }), context: () => ({}),
     proposePlan: (p, why, r) => log.plans.push({ p, why, r }), proposeSettings: (c, why) => log.settings.push({ c, why }),
+    optimize: (o) => { log.opt = o; return { statut: 'lancée' }; }, proposeSession: (nom, minutes, why) => { log.sess = { nom, minutes, why }; return { statut: 'proposée' }; },
   };
   return { app, log, start, world };
 }
@@ -55,11 +56,33 @@ test('outils : réglages autorisés seulement, valeurs vérifiées', () => {
 
 test('outils : schémas JSON des outils bien formés', () => {
   for (const t of BZ.CHAT_TOOLS) {
-    assert.strictEqual(t.input_schema.type, 'object');
-    assert.ok(!JSON.stringify(t.input_schema).includes('$ref'), t.name);
+    assert.strictEqual(t.parameters.type, 'object');
+    assert.ok(!JSON.stringify(t.parameters).includes('$ref'), t.name);
     assert.ok(t.description.length > 20);
   }
   const plan = BZ.planToTool({ start: { x: -60, y: -40, h: Math.PI / 2 }, actions: [{ type: 'tir', x: -40, y: -45, n: 2, ctrl: [-50, -50] }], park: { on: true, t: 0.3 } });
   assert.deepStrictEqual(plan.depart, { x: -60, y: -40, cap_deg: 90, verrouille: false });
   assert.deepStrictEqual(plan.etapes[0], { type: 'tir', x: -40, y: -45, n: 2, courbe: [-50, -50] });
+});
+
+test('outils : lancer l\'optimisation et proposer une session cloud (valeurs vérifiées)', () => {
+  const { app, log } = fakeApp();
+  const as = new BZ.Assistant(app);
+  assert.ok(!as.runTool('optimiser_plan', {}).is_error);
+  assert.deepStrictEqual(log.opt, { generations: 300, keepOrder: true });
+  assert.ok(!as.runTool('optimiser_plan', { generations: 800, garder_ordre: false }).is_error);
+  assert.deepStrictEqual(log.opt, { generations: 800, keepOrder: false });
+  assert.ok(as.runTool('optimiser_plan', { generations: 3 }).is_error);
+  assert.ok(!as.runTool('lancer_session_cloud', { nom: 'essai', minutes: 120, explication: 'long' }).is_error);
+  assert.deepStrictEqual(log.sess, { nom: 'essai', minutes: 120, why: 'long' });
+  assert.ok(as.runTool('lancer_session_cloud', { minutes: 900, explication: 'x' }).is_error);
+  assert.ok(as.runTool('lancer_session_cloud', { minutes: 60 }).is_error, 'explication obligatoire');
+});
+
+test('réglages : une valeur envoyée en texte JSON est acceptée', () => {
+  const { app, log } = fakeApp();
+  const as = new BZ.Assistant(app);
+  const r = as.runTool('modifier_reglages', { changements: [{ chemin: 'robot.lanceur.precision', valeur: '0.9' }, { chemin: 'robot.chassis', valeur: 'tank' }], explication: 'x' });
+  assert.ok(!r.is_error, r.content);
+  assert.strictEqual(log.settings[0].c[0].valeur, 0.9);
 });

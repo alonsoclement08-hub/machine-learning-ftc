@@ -138,13 +138,13 @@
 
   <!-- ===================== BARRE DE DROITE : 3 PAGES ===================== -->
   <aside class="side">
-    <div class="brandline"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z" fill="var(--accent)"/><path d="M8 10h8M7.5 13h9M9 16h6" stroke="#1d1f24" stroke-width="1.6" stroke-linecap="round"/></svg><div class="brandtxt"><b>BIOBUZZ Auto IA</b><span>Planificateur d'AUTO · FTC 2026-27</span></div><span class="vtag mono" id="appVersion">v14 · 31/10</span></div>
+    <div class="brandline"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z" fill="var(--accent)"/><path d="M8 10h8M7.5 13h9M9 16h6" stroke="#1d1f24" stroke-width="1.6" stroke-linecap="round"/></svg><div class="brandtxt"><b>BIOBUZZ Auto IA</b><span>Planificateur d'AUTO · FTC 2026-27</span></div><span class="vtag mono" id="appVersion">v15 · 01/11</span></div>
     <div class="pager-head">
       <button class="btn icon ghost" id="pagePrev" type="button" aria-label="Page précédente"><svg class="ic" aria-hidden="true"><use href="#i-chev-left"/></svg></button>
       <div class="pager-dots" role="tablist">
         <button class="pdot active" data-page="0" type="button"><svg class="ic" aria-hidden="true"><use href="#i-cube"/></svg><span>Robot</span></button>
-        <button class="pdot" data-page="1" type="button"><svg class="ic" aria-hidden="true"><use href="#i-chat"/></svg><span>Chat IA</span></button>
-        <button class="pdot" data-page="2" type="button"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span id="optDotLabel">Optimiser</span></button>
+        <button class="pdot" data-page="1" type="button"><svg class="ic" aria-hidden="true"><use href="#i-chat"/></svg><span id="optDotLabel">Assistant</span></button>
+        <button class="pdot" data-page="2" type="button"><svg class="ic" aria-hidden="true"><use href="#i-code"/></svg><span>Code</span></button>
       </div>
       <button class="btn icon ghost" id="pageNext" type="button" aria-label="Page suivante"><svg class="ic" aria-hidden="true"><use href="#i-chev-right"/></svg></button>
     </div>
@@ -299,15 +299,15 @@
       </div>
       </section>
 
-      <!-- PAGE 2 : CHAT IA -->
-      <section class="page" id="page-chat" aria-label="Assistant IA">
+      <!-- PAGE 2 : ASSISTANT IA, OPTIMISATION, SESSIONS DANS LE CLOUD -->
+      <section class="page" id="page-chat" aria-label="Assistant IA, optimisation et sessions">
         <div class="card chatcard" id="chatCard">
-          <div class="row between"><h2>Assistant IA</h2><button class="btn ghost" id="chatNew" type="button" title="Nouvelle discussion"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Nouvelle</button></div>
+          <div class="row between"><h2 class="h-ic"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg>Assistant IA</h2><button class="btn ghost" id="chatNew" type="button" title="Nouvelle discussion"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Nouvelle</button></div>
           <details id="chatSetup">
-            <summary id="chatSetupSum">Clé API Anthropic</summary>
-            <p class="hint">Le chat utilise l'API Claude d'Anthropic : il faut une <b>clé API</b> (payante à l'usage, quelques centimes par question). Créez-la sur <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. Elle reste dans ce navigateur et part directement chez Anthropic. Ne la partagez pas.</p>
-            <label>Clé API <input id="chatKey" type="password" placeholder="sk-ant-…" autocomplete="off"></label>
-            <label>Modèle <select id="chatModel"></select></label>
+            <summary id="chatSetupSum">Clé API Gemini</summary>
+            <p class="hint">Le chat utilise l'API <b>Gemini</b> de Google : il faut une <b>clé API</b> (gratuite pour commencer, avec un quota). Créez-la sur <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com/app/apikey</a> (« Create API key »). Elle reste dans ce navigateur et part directement chez Google. Ne la partagez pas.</p>
+            <label>Clé API <input id="chatKey" type="password" placeholder="AIza…" autocomplete="off"></label>
+            <label>Modèle <select id="chatModel"></select><small id="chatModelHint">La liste complète s'affiche une fois la clé enregistrée.</small></label>
             <div class="row"><button class="btn primary" id="chatSaveKey" type="button">Enregistrer</button><button class="btn ghost" id="chatForget" type="button">Oublier la clé</button></div>
           </details>
           <div id="chatLog" class="chatlog" aria-live="polite"></div>
@@ -316,19 +316,19 @@
             <button class="chip2" type="button">Rends mon trajet plus rapide</button>
             <button class="chip2" type="button">Que dois-je mesurer sur mon robot ?</button>
             <button class="chip2" type="button">Propose un meilleur plan</button>
+            <button class="chip2" type="button">Optimise mon plan</button>
+            <button class="chip2" type="button">Lance une session cloud de 2 h</button>
           </div>
           <form id="chatForm" class="chatform">
             <textarea id="chatInput" rows="2" placeholder="Posez une question sur votre AUTO…"></textarea>
             <button class="btn primary" id="chatSend" type="submit">Envoyer</button>
           </form>
         </div>
-      </section>
 
-      <!-- PAGE 3 : OPTIMISER, SESSIONS, CODE -->
-      <section class="page" id="page-opt" aria-label="Optimiser">
+        <h2 class="pagetitle"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg>Optimisation</h2>
         <div class="card">
           <h2>Optimiser avec l'IA</h2>
-          <p class="hint">L'IA part de <b>votre plan</b> et essaie des milliers de variantes : points de tir, courbes, nombre de balles, départ.</p>
+          <p class="hint">Ici, ou en demandant au chat « optimise mon plan ». L'IA part de <b>votre plan</b> et essaie des milliers de variantes : points de tir, courbes, nombre de balles, départ.</p>
           <label class="check"><input type="checkbox" id="keepOrder" checked> Garder l'ordre de mes étapes (et les étapes verrouillées)</label>
           <div class="row">
             <button class="btn primary" id="trainBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-play"/></svg>Optimiser mon plan</button>
@@ -346,26 +346,6 @@
             <label class="btn file">Importer un résultat (resultat.json)…<input type="file" id="loadResult" accept=".json"></label>
           </div>
           <div id="cloudStatus" class="status"></div>
-        </div>
-
-        <div class="card">
-          <h2>Code du robot</h2>
-          <ul id="startText" class="plain"></ul>
-          <div class="row">
-            <button class="btn primary" id="dlJava" type="button"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>AutoBiobuzzIA.java</button>
-            <button class="btn primary" id="dlBlk" type="button"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>AutoBiobuzzIA.blk</button>
-            <button class="btn primary" id="dlPedro" type="button"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>Pedro (odométrie)</button>
-          </div>
-          <div class="row">
-            <button class="btn" id="showJava" type="button">Voir le Java</button>
-            <button class="btn" id="showBlk" type="button">Voir le .blk</button>
-            <button class="btn" id="showPedro" type="button">Voir Pedro</button>
-            <button class="btn" id="copyCode" type="button"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg>Copier</button>
-          </div>
-          <textarea id="codeView" spellcheck="false" readonly></textarea>
-          <p class="hint" id="codeModeHint"></p>
-          <p class="hint"><b>Java</b> : copiez le fichier dans <span class="mono">TeamCode/src/main/java/org/firstinspires/ftc/teamcode/</span>.
-            <b>Blockly</b> : sur la page Blocks du Robot Controller, « Upload Op Mode » et choisissez le .blk.</p>
         </div>
 
         <h2 class="pagetitle"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>Sessions dans le cloud</h2>
@@ -416,6 +396,30 @@
         </details>
       </div>
       </section>
+
+      <!-- PAGE 3 : CODE DU ROBOT -->
+      <section class="page" id="page-code" aria-label="Code du robot">
+        <div class="card">
+          <h2>Code du robot</h2>
+          <ul id="startText" class="plain"></ul>
+          <div class="row">
+            <button class="btn primary" id="dlJava" type="button"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>AutoBiobuzzIA.java</button>
+            <button class="btn primary" id="dlBlk" type="button"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>AutoBiobuzzIA.blk</button>
+            <button class="btn primary" id="dlPedro" type="button"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg>Pedro (odométrie)</button>
+          </div>
+          <div class="row">
+            <button class="btn" id="showJava" type="button">Voir le Java</button>
+            <button class="btn" id="showBlk" type="button">Voir le .blk</button>
+            <button class="btn" id="showPedro" type="button">Voir Pedro</button>
+            <button class="btn" id="copyCode" type="button"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg>Copier</button>
+          </div>
+          <textarea id="codeView" spellcheck="false" readonly></textarea>
+          <p class="hint" id="codeModeHint"></p>
+          <p class="hint"><b>Java</b> : copiez le fichier dans <span class="mono">TeamCode/src/main/java/org/firstinspires/ftc/teamcode/</span>.
+            <b>Blockly</b> : sur la page Blocks du Robot Controller, « Upload Op Mode » et choisissez le .blk.</p>
+        </div>
+
+      </section>
     </div>
   </aside>
 </main>
@@ -447,7 +451,6 @@
 <script src="js/render2d.js"></script>
 <script src="js/render3d.js"></script>
 <script src="js/plan_editor.js"></script>
-<script src="vendor/anthropic-sdk.js"></script>
 <script src="js/assistant.js"></script>
 <script src="js/robot_import.js"></script>
 <script src="js/robot_preview.js"></script>

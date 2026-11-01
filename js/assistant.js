@@ -1,19 +1,22 @@
-// Assistant IA (page 2) : discussion avec Claude via le SDK officiel Anthropic (vendor/anthropic-sdk.js).
-// Claude voit les réglages, le plan dessiné et son résultat simulé ; il peut simuler des variantes
-// et proposer un plan ou des réglages : l'équipe décide avec les boutons « Appliquer ».
-// La clé API reste dans ce navigateur et part directement vers l'API Anthropic.
+// Assistant IA (page 2) : discussion avec Gemini (API Google, appelée directement en fetch).
+// Gemini voit les réglages, le plan dessiné et son résultat simulé ; il peut simuler des variantes,
+// proposer un plan ou des réglages, lancer l'optimisation et proposer une session dans le cloud :
+// l'équipe décide avec les boutons « Appliquer » / « Lancer ».
+// La clé API reste dans ce navigateur et part directement vers l'API Gemini de Google.
 (function (root) {
   'use strict';
   const BZ = root.BZ = root.BZ || {};
   const G = BZ.G;
 
+  // Modèles proposés avant la connexion ; avec une clé, la liste vient de l'API (BZ.geminiModels).
   BZ.CHAT_MODELS = [
-    { id: 'claude-opus-5-5', nom: 'Claude Opus 5.5 (le plus fort)' },
-    { id: 'claude-sonnet-5-5', nom: 'Claude Sonnet 5.5 (rapide)' },
-    { id: 'claude-haiku-5-5', nom: 'Claude Haiku 5.5 (le moins cher)' },
+    { id: 'gemini-2.5-flash', nom: 'Gemini 2.5 Flash (rapide, recommandé)' },
+    { id: 'gemini-2.5-pro', nom: 'Gemini 2.5 Pro (le plus fort)' },
+    { id: 'gemini-2.5-flash-lite', nom: 'Gemini 2.5 Flash-Lite (le moins cher)' },
   ];
+  const API = 'https://generativelanguage.googleapis.com/v1beta';
 
-  // Réglages que Claude a le droit de proposer de changer.
+  // Réglages que l'IA a le droit de proposer de changer.
   BZ.CHAT_SETTINGS = {
     'robot.chassis': ['mecanum', 'tank'],
     'robot.deplacement': ['chrono', 'odometrie'],
@@ -32,7 +35,7 @@
 
   const getPath = (o, p) => p.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);
 
-  // Plan de l'appli <-> plan des outils (cap en degrés, plus lisible pour Claude).
+  // Plan de l'appli <-> plan des outils (cap en degrés, plus lisible pour l'IA).
   BZ.planToTool = function (plan) {
     return {
       depart: plan.start ? { x: r1(plan.start.x), y: r1(plan.start.y), cap_deg: Math.round(G.deg(plan.start.h)), verrouille: !!plan.startLock } : null,
@@ -50,7 +53,7 @@
   };
   const r1 = (v) => Math.round(v * 10) / 10;
 
-  // Vérifie un plan proposé par Claude et le convertit ; lève une erreur lisible sinon.
+  // Vérifie un plan proposé par l'IA et le convertit ; lève une erreur lisible sinon.
   BZ.planFromTool = function (p, current, world, robot) {
     if (!p || typeof p !== 'object') throw new Error('plan manquant');
     if (!Array.isArray(p.etapes)) throw new Error('"etapes" doit être une liste');
@@ -100,6 +103,7 @@
       const rule = BZ.CHAT_SETTINGS[c && c.chemin];
       if (!rule) throw new Error(`réglage inconnu ou interdit : ${c && c.chemin}. Autorisés : ${Object.keys(BZ.CHAT_SETTINGS).join(', ')}`);
       let v = c.valeur;
+      if (typeof v === 'string' && !(Array.isArray(rule) && typeof rule[0] === 'string')) { try { v = JSON.parse(v); } catch (e) { /* on garde le texte */ } }
       if (rule === 'bool') { if (typeof v !== 'boolean') throw new Error(`${c.chemin} : true ou false`); }
       else if (rule === 'table') {
         if (!Array.isArray(v) || v.length !== 6 || v.some((x) => typeof x !== 'number' || x < 0 || x > 20)) throw new Error(`${c.chemin} : 6 nombres entre 0 et 20`);
@@ -110,7 +114,7 @@
     });
   };
 
-  // Résumé d'un résultat simulé, pour Claude.
+  // Résumé d'un résultat simulé, pour l'IA.
   BZ.resultSummary = function (r) {
     if (!r) return null;
     return {
@@ -127,28 +131,52 @@
     {
       name: 'simuler_plan',
       description: "Simule un plan d'AUTO avec le robot et les règles actuels et renvoie le score espéré, la durée, les chances de bascule, les fautes et le temps de chaque étape. Utilise-le pour tester tes idées AVANT de proposer quoi que ce soit. Ne modifie rien.",
-      input_schema: { type: 'object', properties: { plan: { $ref: '#/$defs/plan' } }, required: ['plan'], $defs: null },
+      parameters: { type: 'object', properties: { plan: { $ref: '#/$defs/plan' } }, required: ['plan'], $defs: null },
     },
     {
       name: 'proposer_plan',
       description: "Propose un plan à l'équipe. L'appli le simule et affiche une carte avec le score avant/après et les boutons « Voir sur le terrain » et « Appliquer ». L'équipe décide ; ne dis pas que le plan est appliqué.",
-      input_schema: { type: 'object', properties: { plan: { $ref: '#/$defs/plan' }, explication: { type: 'string', description: 'Pourquoi ce plan est meilleur, en 1 à 3 phrases simples.' } }, required: ['plan', 'explication'], $defs: null },
+      parameters: { type: 'object', properties: { plan: { $ref: '#/$defs/plan' }, explication: { type: 'string', description: 'Pourquoi ce plan est meilleur, en 1 à 3 phrases simples.' } }, required: ['plan', 'explication'], $defs: null },
     },
     {
       name: 'lire_reglages',
       description: 'Renvoie tous les réglages actuels du robot et du match (page 1 de l\'appli) et la liste des réglages modifiables.',
-      input_schema: { type: 'object', properties: {} },
+      parameters: { type: 'object', properties: {} },
     },
     {
       name: 'modifier_reglages',
       description: "Propose de changer des réglages du robot ou du match (page 1). L'appli affiche une carte avant/après avec « Appliquer » : l'équipe décide. Ne change que ce que l'équipe a mesuré ou demandé.",
-      input_schema: {
+      parameters: {
         type: 'object',
         properties: {
           changements: { type: 'array', items: { type: 'object', properties: { chemin: { type: 'string', description: 'ex. robot.lanceur.precision, match.tableBascule' }, valeur: { description: 'nombre, texte, booléen, ou liste de 6 nombres pour match.tableBascule' } }, required: ['chemin', 'valeur'] } },
           explication: { type: 'string' },
         },
         required: ['changements', 'explication'],
+      },
+    },
+    {
+      name: 'optimiser_plan',
+      description: "Lance l'optimisation dans l'appli (algorithme génétique, sur cet ordinateur) à partir du plan dessiné : elle essaie des milliers de variantes (points de tir, courbes, nombre de balles, départ). Elle tourne en arrière-plan quelques secondes à quelques minutes ; le résultat s'affiche en aperçu sur le terrain avec « Garder ce plan ». Utilise-le quand l'équipe demande d'optimiser.",
+      parameters: {
+        type: 'object',
+        properties: {
+          generations: { type: 'integer', description: 'nombre de générations, de 10 à 5000 (300 par défaut, environ une minute)' },
+          garder_ordre: { type: 'boolean', description: "true (défaut) : garder l'ordre et la nature des étapes et les étapes verrouillées" },
+        },
+      },
+    },
+    {
+      name: 'lancer_session_cloud',
+      description: "Propose de lancer un entraînement long sur un serveur GitHub (la session continue même ordinateur éteint, 340 min au plus) avec le robot, le match et le plan actuels. L'appli affiche une carte avec le bouton « Lancer » : l'équipe décide. Il faut que GitHub soit connecté (sinon la carte l'explique).",
+      parameters: {
+        type: 'object',
+        properties: {
+          nom: { type: 'string', description: 'nom court de la session, ex. « départ gauche 2 bascules »' },
+          minutes: { type: 'integer', description: 'durée en minutes, de 5 à 340' },
+          explication: { type: 'string' },
+        },
+        required: ['minutes', 'explication'],
       },
     },
   ];
@@ -177,10 +205,9 @@
   };
   // on remplace les références par le schéma du plan (le schéma reste simple et explicite)
   for (const t of TOOLS) {
-    const props = t.input_schema.properties;
+    const props = t.parameters.properties;
     if (props.plan) props.plan = PLAN_SCHEMA;
-    delete t.input_schema.$defs;
-    t.eager_input_streaming = true; // les entrées arrivent au fil de l'eau ; on les valide nous-mêmes
+    delete t.parameters.$defs;
   }
   BZ.CHAT_TOOLS = TOOLS;
 
@@ -191,6 +218,7 @@
     return [
       "Tu es l'assistant d'une équipe FIRST Tech Challenge (lycéens) qui prépare l'AUTO de 30 s du jeu BIOBUZZ 2026-2027 dans l'appli « BIOBUZZ Auto IA ». Réponds en français simple et concret, sans jargon, en peu de mots.",
       "Ce que tu peux faire : expliquer le plan et son score, trouver pourquoi il perd du temps ou rate des bascules, simuler des variantes avec simuler_plan, puis proposer un plan (proposer_plan) ou des réglages (modifier_reglages). L'équipe décide : tes propositions s'affichent avec un bouton « Appliquer ». N'annonce jamais un score que le simulateur n'a pas donné. Teste toujours un plan avec simuler_plan avant de le proposer. Ne change un réglage du robot que s'il vient d'une mesure de l'équipe ou d'une demande claire.",
+      "Optimisation : optimiser_plan lance l'algorithme génétique de l'appli sur cet ordinateur (il tourne en arrière-plan ; l'équipe voit l'aperçu sur le terrain et décide de le garder). lancer_session_cloud propose une longue session sur un serveur GitHub (jusqu'à 340 min, ordinateur éteint possible) : l'équipe confirme avec « Lancer ». L'état de l'optimisation et des sessions est dans la situation envoyée avec chaque message.",
       "Repère (celui du simulateur, alliance rouge ; le même programme marche en bleu) : pouces, origine au centre du terrain, x vers la droite vu du public, y en s'éloignant du public, cap en degrés dans le sens trigonométrique (0° = vers +x, le centre du terrain). Notre côté : x entre -72 et 0 (passer x > 0 est une faute G402). Murs à ±72.",
       `HIVE au centre (x de -22 à 0, y de -19 à 19 : on ne la touche pas, on ne passe pas dessous). Au départ la CELL du haut s'ouvre vers les y négatifs : on tire depuis y < -17, cible (${r1(c[0].x)}, ${r1(c[0].y)}). Après une bascule, c'est l'autre CELL qui est en haut, ouverte vers les y positifs : on tire depuis y > 17, cible (${r1(c[1].x)}, ${r1(c[1].y)}). Tirer de derrière l'ouverture ne marque pas. La précision est meilleure bien en face de l'ouverture et à la distance idéale du lanceur.`,
       `Balles : 4 POLLEN préchargés dans le robot (capacité 4). ${F}. GARDEN (src "jardin") : 4 POLLEN le long du mur y = -71, près de x = -66. LOADING ZONE : x de ${r1(z.x0)} à ${r1(z.x1)}, y de ${r1(z.y0)} à ${r1(z.y1)} (PARK = finir en partie dedans ; après chaque bascule le joueur humain y pose 1 NECTAR, src "nectar", si l'option est cochée).`,
@@ -206,14 +234,9 @@
     this.abort = null;
   }
 
-  Assistant.prototype.client = function (key) {
-    if (!root.Anthropic) throw new Error('SDK Anthropic absent (vendor/anthropic-sdk.js)');
-    return new root.Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
-  };
-
   Assistant.prototype.reset = function () { this.messages = []; };
 
-  // Exécute un outil demandé par Claude ; renvoie { content, is_error }.
+  // Exécute un outil demandé par l'IA ; renvoie { content, is_error }.
   Assistant.prototype.runTool = function (name, input) {
     const app = this.app;
     try {
@@ -229,6 +252,19 @@
         app.proposePlan(plan, input.explication, r);
         return { content: JSON.stringify({ statut: "proposé à l'équipe (carte avec Appliquer), en attente de sa décision", resultat: sum }) };
       }
+      if (name === 'optimiser_plan') {
+        const gens = input.generations === undefined ? 300 : Math.round(Number(input.generations));
+        if (!isFinite(gens) || gens < 10 || gens > 5000) throw new Error('generations : entre 10 et 5000');
+        const st = app.optimize({ generations: gens, keepOrder: input.garder_ordre !== false });
+        return { content: JSON.stringify(st) };
+      }
+      if (name === 'lancer_session_cloud') {
+        const minutes = Math.round(Number(input.minutes));
+        if (!isFinite(minutes) || minutes < 5 || minutes > 340) throw new Error('minutes : entre 5 et 340');
+        if (typeof input.explication !== 'string') throw new Error('"explication" manquante');
+        const nom = typeof input.nom === 'string' ? input.nom.trim().slice(0, 60) : '';
+        return { content: JSON.stringify(app.proposeSession(nom, minutes, input.explication)) };
+      }
       if (name === 'modifier_reglages') {
         const ch = BZ.settingsFromTool(input.changements);
         if (typeof input.explication !== 'string') throw new Error('"explication" manquante');
@@ -241,56 +277,133 @@
     }
   };
 
-  // Envoie un message et fait la boucle d'outils. ui : { onText(delta), onTurnStart(), onTool(name, input, res), onDone(), onError(msg) }
+  // Déclarations d'outils au format Gemini (schéma JSON complet, ou schéma OpenAPI simplifié en secours).
+  function geminiTools(legacy) {
+    const strip = (o) => {
+      if (Array.isArray(o)) return o.map(strip);
+      if (!o || typeof o !== 'object') return o;
+      const r = {};
+      for (const [k, v] of Object.entries(o)) r[k] = strip(v);
+      if (!r.type && !r.anyOf && r.description !== undefined && !r.properties) r.type = 'string'; // « valeur » libre : texte JSON
+      return r;
+    };
+    return [{
+      functionDeclarations: TOOLS.map((t) => {
+        const d = { name: t.name, description: t.description };
+        const empty = !Object.keys(t.parameters.properties).length;
+        if (!empty) { if (legacy) d.parameters = strip(t.parameters); else d.parametersJsonSchema = t.parameters; }
+        return d;
+      }),
+    }];
+  }
+
+  // Erreur HTTP de l'API Gemini, avec un message lisible.
+  function ApiError(status, body) {
+    const e = (body && body.error) || {};
+    const err = new Error(e.message || ('HTTP ' + status));
+    err.status = status;
+    err.reason = e.status || '';
+    err.detail = JSON.stringify(e.details || '');
+    return err;
+  }
+
+  // Un tour de génération en flux (SSE) ; renvoie { parts, finish, block }.
+  Assistant.prototype.stream = async function (key, model, body, onText, signal) {
+    const res = await fetch(`${API}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
+      method: 'POST', signal,
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      let j = null;
+      try { j = await res.json(); } catch (e) { /* pas de JSON */ }
+      throw ApiError(res.status, j);
+    }
+    const parts = [];
+    let finish = '', block = '';
+    const add = (p) => {
+      const last = parts[parts.length - 1];
+      // le texte arrive en morceaux : on les recolle (sauf s'ils portent une signature de pensée)
+      if (p.text !== undefined && !p.thought && !p.thoughtSignature && last && last.text !== undefined && !last.thought && !last.thoughtSignature) last.text += p.text;
+      else parts.push(Object.assign({}, p));
+      if (p.text && !p.thought) onText(p.text);
+    };
+    const handle = (line) => {
+      if (!line.startsWith('data:')) return;
+      const j = JSON.parse(line.slice(5).trim());
+      if (j.error) throw ApiError(j.error.code || 500, j);
+      if (j.promptFeedback && j.promptFeedback.blockReason) block = j.promptFeedback.blockReason;
+      const c = j.candidates && j.candidates[0];
+      if (!c) return;
+      if (c.content && c.content.parts) c.content.parts.forEach(add);
+      if (c.finishReason) finish = c.finishReason;
+    };
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let k;
+      while ((k = buf.indexOf('\n')) >= 0) { handle(buf.slice(0, k).replace(/\r$/, '')); buf = buf.slice(k + 1); }
+    }
+    if (buf.trim()) handle(buf.trim());
+    return { parts, finish, block };
+  };
+
+  // Envoie un message et fait la boucle d'outils. ui : { onText(delta), onTurnStart(), onToolStart(name, input), onTool(name, input, res), onDone(), onError(msg) }
   Assistant.prototype.send = async function (text, key, model, ui) {
     if (this.busy) return;
     this.busy = true;
-    const A = root.Anthropic;
-    const client = this.client(key);
+    const ctrl = new AbortController();
+    this.abort = () => ctrl.abort();
     const world = this.app.world();
     const ctxText = 'Situation actuelle dans l\'appli (JSON) :\n' + JSON.stringify(this.app.context());
     const n0 = this.messages.length;
-    this.messages.push({ role: 'user', content: [{ type: 'text', text: ctxText }, { type: 'text', text }] });
-    const params = {
-      model,
-      max_tokens: 16000,
-      system: [{ type: 'text', text: systemPrompt(world), cache_control: { type: 'ephemeral' } }],
-      tools: TOOLS,
-      output_config: { effort: 'medium' },
-    };
-    if (model !== 'claude-haiku-5-5') { params.betas = ['server-side-fallback-2026-07-01']; params.fallbacks = 'default'; }
-    let jsonRetries = 0;
+    this.messages.push({ role: 'user', parts: [{ text: ctxText }, { text }] });
+    const body = () => ({
+      systemInstruction: { parts: [{ text: systemPrompt(world) }] },
+      contents: this.messages,
+      tools: geminiTools(this.legacySchema),
+      toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
+      generationConfig: { maxOutputTokens: 16000 },
+    });
     try {
       for (let turn = 0; turn < 12; turn++) {
         ui.onTurnStart && ui.onTurnStart();
-        const stream = client.beta.messages.stream(Object.assign({}, params, { messages: this.messages }));
-        this.abort = () => stream.abort();
-        stream.on('text', (d) => ui.onText(d));
-        let msg;
+        let out;
         try {
-          msg = await stream.finalMessage();
-          jsonRetries = 0;
+          out = await this.stream(key, model, body(), (d) => ui.onText(d), ctrl.signal);
         } catch (err) {
-          // entrée d'outil illisible (flux interrompu) : on relance le tour, deux fois au plus
-          if (err instanceof A.APIError || err instanceof A.APIUserAbortError || jsonRetries++ >= 2) throw err;
-          continue;
+          // ancien format de schéma : on réessaie une fois avec le schéma simplifié
+          if (err.status === 400 && !this.legacySchema && /parameters_?json_?schema/i.test(err.message + err.detail)) { this.legacySchema = true; turn--; continue; }
+          throw err;
         }
-        if (msg.stop_reason === 'refusal') {
-          this.messages.push({ role: 'assistant', content: msg.content });
-          ui.onError('Claude a refusé de répondre à cette demande. Reformulez-la.');
+        if (out.block) { ui.onError('Gemini a bloqué cette demande (' + out.block + '). Reformulez-la.'); this.messages.length = n0; break; }
+        if (!out.parts.length) {
+          if (out.finish === 'SAFETY' || out.finish === 'PROHIBITED_CONTENT') ui.onError('Gemini a refusé de répondre à cette demande. Reformulez-la.');
+          else if (out.finish === 'MAX_TOKENS') ui.onError('Réponse trop longue, coupée. Posez une question plus précise.');
+          else ui.onError('Gemini n\'a rien répondu (' + (out.finish || 'réponse vide') + '). Réessayez.');
+          this.messages.length = n0;
           break;
         }
-        this.messages.push({ role: 'assistant', content: msg.content });
-        if (msg.stop_reason === 'pause_turn') continue;
-        const uses = msg.content.filter((b) => b.type === 'tool_use');
-        if (!uses.length) break;
-        if (msg.stop_reason === 'max_tokens') { ui.onError('Réponse trop longue, coupée. Posez une question plus précise.'); break; }
-        const results = uses.map((u) => {
-          const res = this.runTool(u.name, u.input);
-          ui.onTool && ui.onTool(u.name, u.input, res);
-          return Object.assign({ type: 'tool_result', tool_use_id: u.id, content: res.content }, res.is_error ? { is_error: true } : {});
+        this.messages.push({ role: 'model', parts: out.parts });
+        const calls = out.parts.filter((p) => p.functionCall);
+        if (!calls.length) {
+          if (out.finish === 'MAX_TOKENS') ui.onError('Réponse trop longue, coupée. Posez une question plus précise.');
+          break;
+        }
+        const results = calls.map((p) => {
+          const fc = p.functionCall;
+          ui.onToolStart && ui.onToolStart(fc.name, fc.args);
+          const res = this.runTool(fc.name, fc.args || {});
+          ui.onTool && ui.onTool(fc.name, fc.args, res);
+          let payload;
+          try { payload = JSON.parse(res.content); } catch (e) { payload = res.content; }
+          const response = res.is_error ? { error: res.content } : { result: payload };
+          return { functionResponse: Object.assign({ name: fc.name, response }, fc.id ? { id: fc.id } : {}) };
         });
-        this.messages.push({ role: 'user', content: results });
+        this.messages.push({ role: 'user', parts: results });
       }
       ui.onDone && ui.onDone();
     } catch (err) {
@@ -304,18 +417,29 @@
   };
 
   BZ.chatErrorText = function (err) {
-    const A = root.Anthropic;
-    if (A) {
-      if (err instanceof A.APIUserAbortError) return 'Arrêté.';
-      if (err instanceof A.AuthenticationError) return 'Clé API refusée : vérifiez-la (elle commence par sk-ant-).';
-      if (err instanceof A.PermissionDeniedError) return "Cette clé n'a pas accès à ce modèle.";
-      if (err instanceof A.RateLimitError) return 'Trop de demandes ou crédit épuisé : attendez un peu ou vérifiez votre compte Anthropic.';
-      if (err instanceof A.BadRequestError) return 'Demande refusée par l\'API : ' + (err.message || '');
-      if (err instanceof A.APIConnectionError) return "Pas de connexion à l'API Anthropic (Internet ?).";
-      if (err instanceof A.InternalServerError) return 'Le service Anthropic a un problème, réessayez dans un moment.';
-      if (err instanceof A.APIError) return `Erreur de l'API (${err.status}) : ${err.message}`;
+    if (err && err.name === 'AbortError') return 'Arrêté.';
+    if (err && err.status) {
+      const m = err.message || '';
+      if (err.status === 400 && /API key|API_KEY/i.test(m + err.detail)) return 'Clé API refusée : vérifiez-la (elle commence par AIza).';
+      if (err.status === 401 || err.status === 403) return "Cette clé n'a pas accès à l'API Gemini ou à ce modèle (vérifiez-la sur aistudio.google.com).";
+      if (err.status === 404) return 'Modèle introuvable : choisissez-en un autre dans la liste.';
+      if (err.status === 429) return 'Trop de demandes ou quota gratuit épuisé : attendez un peu ou vérifiez votre compte Google AI Studio.';
+      if (err.status >= 500) return 'Le service Gemini a un problème, réessayez dans un moment.';
+      return `Erreur de l'API Gemini (${err.status}) : ${m}`;
     }
+    if (err instanceof TypeError) return "Pas de connexion à l'API Gemini (Internet ?).";
     return 'Erreur : ' + (err && err.message ? err.message : err);
+  };
+
+  // Modèles Gemini disponibles pour cette clé (ceux qui savent discuter).
+  BZ.geminiModels = async function (key) {
+    const res = await fetch(`${API}/models?pageSize=200`, { headers: { 'x-goog-api-key': key } });
+    let j = null;
+    try { j = await res.json(); } catch (e) { /* pas de JSON */ }
+    if (!res.ok) throw ApiError(res.status, j);
+    return (j.models || [])
+      .filter((m) => (m.supportedGenerationMethods || []).indexOf('generateContent') >= 0 && /gemini/i.test(m.name) && !/embedding|image|tts|audio|live|vision/i.test(m.name))
+      .map((m) => ({ id: m.name.replace(/^models\//, ''), nom: m.displayName || m.name }));
   };
 
   BZ.Assistant = Assistant;

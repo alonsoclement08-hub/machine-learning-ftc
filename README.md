@@ -84,31 +84,36 @@ préchargées → FLOWER 1 → FLOWER 2 → GARDEN → PARK.
   0 → 8, 1 → 7, 2 → 6, 3 → 3, 4 → 1, 5 → 0, d'après le manuel V1, à vérifier), NECTAR au départ (3),
   joueur humain et son délai, marge, PARK.
 
-### Page 2 : Chat IA
+### Page 2 : Assistant (chat IA, optimisation, sessions dans le cloud)
 
-Discussion avec **Claude** (API Anthropic) sur votre AUTO : « pourquoi je ne fais pas 2 bascules ? »,
-« rends mon trajet plus rapide »… Claude voit les réglages, le plan dessiné et son résultat simulé,
-il **essaie des variantes avec le simulateur**, puis propose :
-- un **plan** : carte avec le score avant / après, « Voir sur le terrain » et « Appliquer » ;
-- des **réglages** de la page 1 : carte avant → après, « Appliquer » puis « Annuler » si besoin.
+**Chat avec Gemini** (API Google) sur votre AUTO : « pourquoi je ne fais pas 2 bascules ? »,
+« rends mon trajet plus rapide »… Gemini voit les réglages, le plan dessiné, son résultat simulé,
+l'état de l'optimisation et des sessions. Il **essaie des variantes avec le simulateur**, puis :
+- propose un **plan** : carte avec le score avant / après, « Voir sur le terrain » et « Appliquer » ;
+- propose des **réglages** de la page 1 : carte avant → après, « Appliquer » puis « Annuler » si besoin ;
+- **lance l'optimisation** (« optimise mon plan ») : carte avec l'avancement, puis « Garder ce plan » ;
+- propose une **session dans le cloud** (« lance une session de 2 h ») : carte avec « Lancer ».
 
-Rien ne change sans votre clic. Il faut une **clé API Anthropic** (payante à l'usage, quelques
-centimes par question), créée sur [console.anthropic.com](https://console.anthropic.com/settings/keys) :
-elle reste dans votre navigateur et part directement chez Anthropic. Modèles au choix : Claude
-Opus 5.5 (par défaut), Sonnet 5.5, Haiku 5.5 (le moins cher). Le chat a besoin d'Internet ; tout le
-reste de l'appli marche hors ligne.
+Rien ne change sans votre clic (sauf l'optimisation, qui ne fait qu'afficher un aperçu). Il faut une
+**clé API Gemini** (gratuite pour commencer, avec un quota), créée sur
+[aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) : elle reste dans votre
+navigateur et part directement chez Google. Une fois la clé enregistrée, la liste des modèles Gemini
+de votre compte s'affiche (Flash par défaut). Le chat a besoin d'Internet ; tout le reste de l'appli
+marche hors ligne.
 
-### Page 3 : Optimiser, code, sessions
-
-- **Optimiser mon plan** : l'IA part de votre dessin et essaie des milliers de variantes (points de
+Sous le chat, sur la même page :
+- **Optimiser avec l'IA** : l'IA part de votre dessin et essaie des milliers de variantes (points de
   tir dans leurs zones, courbes, points de passage, nombre de balles, départ si non verrouillé).
-  Avec « Garder l'ordre de mes étapes », elle ne change ni l'ordre ni les étapes 🔒. Le terrain montre
-  l'**aperçu** de l'IA : **Garder ce plan** ou **Revenir à mon plan**.
-- **Code du robot** : `AutoBiobuzzIA.java` / `AutoBiobuzzIA.blk` (chronométré) ou
-  `AutoBiobuzzIAPedro.java` (odométrie) du plan affiché, et où placer le robot au départ.
-  Le fichier Pedro suppose le **Quickstart Pedro Pathing v3** réglé pour votre robot
-  (`org.firstinspires.ftc.teamcode.pedro.Constants.create(hardwareMap)` qui renvoie votre Follower).
+  Avec « Garder l'ordre de mes étapes », elle ne change ni l'ordre ni les étapes verrouillées. Le
+  terrain montre l'**aperçu** de l'IA : **Garder ce plan** ou **Revenir à mon plan**.
 - **Sessions dans le cloud** : voir plus bas.
+
+### Page 3 : Code
+
+**Code du robot** : `AutoBiobuzzIA.java` / `AutoBiobuzzIA.blk` (chronométré) ou
+`AutoBiobuzzIAPedro.java` (odométrie) du plan affiché, et où placer le robot au départ.
+Le fichier Pedro suppose le **Quickstart Pedro Pathing v3** réglé pour votre robot
+(`org.firstinspires.ftc.teamcode.pedro.Constants.create(hardwareMap)` qui renvoie votre Follower).
 
 ### Fichiers Inventor (.ipt / .iam)
 
@@ -121,7 +126,7 @@ Avec Onshape ou Fusion 360, faites clic droit puis Exporter > STEP.
 
 ## Sessions dans le cloud (ordinateur éteint)
 
-La page **Optimiser** (☁ Sessions) de l'appli lance des entraînements sur un serveur GitHub gratuit, pendant que
+La page **Assistant** de l'appli (section « Sessions dans le cloud », ou en le demandant au chat) lance des entraînements sur un serveur GitHub gratuit, pendant que
 l'ordinateur est éteint. Il affiche aussi vos sessions (en cours, terminées) et le **meilleur
 résultat**, à charger et rejouer, ou à télécharger directement en `.java` / `.blk`.
 
@@ -130,14 +135,15 @@ https://github.com/settings/personal-access-tokens/new :
 
 1. Repository access : **Only select repositories**, puis le dépôt `machine-learning-ftc`.
 2. Permissions : **Actions = Read and write** et **Contents = Read and write**.
-3. **Generate token**, puis collez le jeton dans la page **Optimiser** (☁ Sessions) et cliquez **Se connecter**.
+3. **Generate token**, puis collez le jeton dans la page **Assistant** (carte « Connexion à GitHub ») et cliquez **Se connecter**.
 
 Le jeton reste uniquement dans ce navigateur.
 
 **Ensuite, à chaque fois :**
 
 1. Réglez le robot et le match (page 1) et dessinez votre plan : la session part de votre plan.
-2. Dans **☁ Sessions**, donnez un nom et une durée (340 min max), puis cliquez **☁ Lancer la session**.
+2. Dans **Sessions dans le cloud**, donnez un nom et une durée (340 min max), puis cliquez **Lancer la session**
+   (ou demandez-le au chat).
 3. Éteignez l'ordinateur si vous voulez. Au retour, rouvrez l'appli : les sessions et le meilleur
    résultat s'affichent tout seuls. Les sessions en cours enregistrent un point d'étape toutes les
    15 min.

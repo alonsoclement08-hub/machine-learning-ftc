@@ -664,7 +664,7 @@
   });
   $('planFromAI').addEventListener('click', () => {
     if (aiPreview) { keepAi(); return; }
-    if (!opt || !opt.best) { goPage(2); toast('Lancez d\'abord l\'optimisation (page « Optimiser »).'); return; }
+    if (!opt || !opt.best) { goPage(1); toast('Lancez d\'abord l\'optimisation (page « Assistant »).'); return; }
     aiPreview = { result: opt.best.result, plan: planFromGenome(opt.best) }; keepAi();
   });
   $('planClear').addEventListener('click', () => { if (!aiPreview) editor.commit((p) => { p.actions = []; p.park = { on: false, t: 0.5 }; }); });
@@ -1118,7 +1118,7 @@
     lastSessions = list;
     const best = BZ.bestSession(list);
     const running = list.filter((s) => s.status !== 'completed').length;
-    $('optDotLabel').textContent = running ? `Optimiser (${running} en cours)` : 'Optimiser';
+    $('optDotLabel').textContent = running ? `Assistant (${running} en cours)` : 'Assistant';
     if (!list.length) { $('sessList').innerHTML = '<p class="hint">Aucune session pour l\'instant : lancez-en une ci-dessus.</p>'; $('bestCard').hidden = true; return; }
     const card = (s) => {
       const r = s.result;
@@ -1176,7 +1176,7 @@
   }
   $('sessRefresh').addEventListener('click', () => (cloud ? refreshSessions() : ghConnect(false)));
 
-  document.getElementById('page-opt').addEventListener('click', async (e) => {
+  document.getElementById('page-chat').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
     const s = lastSessions.find((x) => x.id === b.dataset.id);
@@ -1194,20 +1194,22 @@
     } catch (err) { modal('Action impossible', `<p>${esc(err.message)}</p>`); }
   });
 
+  // Lance une session dans le cloud (bouton de la page, ou carte proposée par le chat). Lève une erreur lisible.
+  async function launchSession(nom, minutes) {
+    if (!cloud && !(await ghConnect(false))) throw new Error('Connectez d\'abord GitHub (carte « Connexion à GitHub », plus bas sur cette page).');
+    minutes = Math.max(5, Math.min(340, minutes || 300));
+    nom = (nom || '').trim() || `${robot.nom} · ${new Date().toLocaleDateString('fr-FR')}`;
+    await cloud.launch(nom, minutes, { version: 1, nom, minutes, robot, game, plan: myPlan, keepOrder: $('keepOrder').checked });
+    setTimeout(() => refreshSessions(), 6000);
+    setTimeout(() => refreshSessions(), 20000);
+    return { nom, minutes };
+  }
   $('sessLaunch').addEventListener('click', async () => {
-    if (!cloud && !(await ghConnect(false))) {
-      $('sessLaunchStatus').textContent = 'Connectez d\'abord GitHub (en bas de cette page).';
-      return;
-    }
-    const minutes = Math.max(5, Math.min(340, parseFloat($('sessMinutes').value) || 300));
-    const nom = ($('sessName').value || '').trim() || `${robot.nom} · ${new Date().toLocaleDateString('fr-FR')}`;
     $('sessLaunch').disabled = true;
     $('sessLaunchStatus').textContent = 'Lancement…';
     try {
-      await cloud.launch(nom, minutes, { version: 1, nom, minutes, robot, game, plan: myPlan, keepOrder: $('keepOrder').checked });
+      const { nom, minutes } = await launchSession($('sessName').value, parseFloat($('sessMinutes').value));
       $('sessLaunchStatus').innerHTML = okTxt(`Session « ${esc(nom)} » lancée pour ${minutes} min.`) + ` Elle apparaît dans la liste d'ici quelques secondes. Vous pouvez éteindre l'ordinateur.`;
-      setTimeout(() => refreshSessions(), 6000);
-      setTimeout(() => refreshSessions(), 20000);
     } catch (err) {
       $('sessLaunchStatus').innerHTML = badTxt(esc(err.message));
     } finally {
@@ -1216,18 +1218,37 @@
   });
   if (ghSettings && ghSettings.token) ghConnect(true);
 
-  // ---------------- Chat IA (page 2) ----------------
-  const CHAT_KEY = 'biobuzz-claude-v1';
-  let chatCfg = { key: '', model: 'claude-opus-5-5' };
+  // ---------------- Assistant IA (page 2) : Gemini ----------------
+  const CHAT_KEY = 'biobuzz-gemini-v1';
+  let chatCfg = { key: '', model: BZ.CHAT_MODELS[0].id };
   try { chatCfg = Object.assign(chatCfg, JSON.parse(localStorage.getItem(CHAT_KEY) || '{}')); } catch (e) { /* rien */ }
-  $('chatModel').innerHTML = BZ.CHAT_MODELS.map((m) => `<option value="${m.id}">${esc(m.nom)}</option>`).join('');
-  $('chatModel').value = chatCfg.model;
+  let chatModels = BZ.CHAT_MODELS.slice();
+  function fillModels() {
+    if (!chatModels.some((m) => m.id === chatCfg.model)) chatModels.unshift({ id: chatCfg.model, nom: chatCfg.model });
+    $('chatModel').innerHTML = chatModels.map((m) => `<option value="${esc(m.id)}">${esc(m.nom)}</option>`).join('');
+    $('chatModel').value = chatCfg.model;
+  }
+  // avec une clé : la vraie liste des modèles Gemini de ce compte
+  async function loadModels() {
+    if (!chatCfg.key) return;
+    try {
+      const list = await BZ.geminiModels(chatCfg.key);
+      if (list.length) {
+        chatModels = list;
+        if (!list.some((m) => m.id === chatCfg.model)) { chatCfg.model = (list.find((m) => /flash/i.test(m.id) && !/lite/i.test(m.id)) || list[0]).id; saveChat(); }
+        fillModels();
+        $('chatModelHint').textContent = `${list.length} modèle${list.length > 1 ? 's' : ''} disponible${list.length > 1 ? 's' : ''} avec cette clé.`;
+      }
+    } catch (err) { $('chatModelHint').textContent = BZ.chatErrorText(err); }
+  }
+  fillModels();
   $('chatKey').value = chatCfg.key;
-  const chatSetupLabel = () => { $('chatSetupSum').textContent = chatCfg.key ? `Clé API enregistrée · ${(BZ.CHAT_MODELS.find((m) => m.id === chatCfg.model) || {}).nom || chatCfg.model}` : 'Clé API Anthropic (à configurer)'; };
+  const chatSetupLabel = () => { $('chatSetupSum').textContent = chatCfg.key ? `Clé API Gemini enregistrée · ${(chatModels.find((m) => m.id === chatCfg.model) || {}).nom || chatCfg.model}` : 'Clé API Gemini (à configurer)'; };
   chatSetupLabel();
   if (!chatCfg.key) $('chatSetup').open = true;
   const saveChat = () => { try { localStorage.setItem(CHAT_KEY, JSON.stringify(chatCfg)); } catch (e) { /* rien */ } chatSetupLabel(); };
-  $('chatSaveKey').addEventListener('click', () => { chatCfg.key = $('chatKey').value.trim(); chatCfg.model = $('chatModel').value; saveChat(); $('chatSetup').open = false; });
+  loadModels();
+  $('chatSaveKey').addEventListener('click', () => { chatCfg.key = $('chatKey').value.trim(); chatCfg.model = $('chatModel').value; saveChat(); $('chatSetup').open = false; loadModels(); });
   $('chatModel').addEventListener('change', () => { chatCfg.model = $('chatModel').value; saveChat(); });
   $('chatForget').addEventListener('click', () => { chatCfg.key = ''; $('chatKey').value = ''; saveChat(); try { localStorage.removeItem(CHAT_KEY); } catch (e) { /* rien */ } });
 
@@ -1275,7 +1296,64 @@
       zones: (game.zones || []).map((z) => ({ id: z.id, type: z.kind, x0: Math.round(Math.min(z.x0, z.x1)), x1: Math.round(Math.max(z.x0, z.x1)), y0: Math.round(Math.min(z.y0, z.y1)), y1: Math.round(Math.max(z.y0, z.y1)) })),
       plan_actuel: BZ.planToTool(myPlan),
       resultat_du_plan: BZ.resultSummary(simulate(myPlan)),
+      optimisation: {
+        en_cours: training,
+        generation: opt ? opt.generation : 0,
+        meilleur_score: opt && opt.best ? Math.round(opt.best.result.expected * 10) / 10 : null,
+        apercu_affiche: !!aiPreview,
+      },
+      sessions_cloud: cloud
+        ? { github_connecte: true, sessions: lastSessions.slice(0, 8).map((x) => ({ nom: x.nom, statut: x.status, score: x.result ? Math.round(x.result.score * 10) / 10 : null })) }
+        : { github_connecte: false },
     }),
+    optimize({ generations, keepOrder }) {
+      $('maxGen').value = String(generations);
+      if ($('keepOrder').checked !== keepOrder) { $('keepOrder').checked = keepOrder; opt = null; }
+      if (opt && opt.generation >= generations) opt = null; // déjà fini : on repart de zéro
+      if (!training) startTraining();
+      const card = chatCard(`<h4>${ic('sliders')}Optimisation lancée</h4><div class="hint" data-prog>Génération 0 / ${generations}</div>` +
+        '<div class="row"><button class="btn" data-a="see" type="button">Voir la carte Optimiser</button><button class="btn ghost" data-a="stop" type="button">Arrêter</button></div>');
+      const prog = card.querySelector('[data-prog]');
+      const tick = setInterval(() => {
+        const g = opt ? opt.generation : 0, b = opt && opt.best ? opt.best.result : null;
+        prog.textContent = `Génération ${g} / ${generations}` + (b ? ` · meilleur : ${b.expected.toFixed(1)} pts, ${b.endT.toFixed(1)} s` : '');
+        if (!training) {
+          clearInterval(tick);
+          card.querySelector('.row').innerHTML = b ? `${okTxt('Terminé')} <button class="btn primary" data-a="keep" type="button">Garder ce plan</button>` : '<span class="hint">Arrêté.</span>';
+        }
+      }, 400);
+      card.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-a]');
+        if (!b) return;
+        if (b.dataset.a === 'see') $('trainBtn').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        else if (b.dataset.a === 'stop') stopTraining();
+        else if (b.dataset.a === 'keep' && aiPreview) { keepAi(); card.querySelector('.row').innerHTML = okTxt('Plan gardé (Annuler pour revenir)'); card.classList.add('done'); }
+      });
+      return { statut: "lancée sur cet ordinateur ; l'aperçu du meilleur plan s'affiche sur le terrain et l'équipe choisit de le garder", generations, garder_ordre: keepOrder };
+    },
+    proposeSession(nom, minutes, why) {
+      const card = chatCard(`<h4>${ic('cloud')}Session dans le cloud : ${minutes} min</h4>` +
+        `<div class="hint">${nom ? '« ' + esc(nom) + ' » · ' : ''}robot, match et plan actuels${cloud ? '' : ' · GitHub non connecté : connectez-le d\'abord plus bas sur cette page'}</div>` +
+        `<div>${mdLite(why)}</div><div class="row"><button class="btn primary" data-a="go" type="button">${ic('cloud')}Lancer</button><button class="btn ghost" data-a="skip" type="button">Ignorer</button></div>`);
+      card.addEventListener('click', async (e) => {
+        const b = e.target.closest('[data-a]');
+        if (!b) return;
+        const row = card.querySelector('.row');
+        if (b.dataset.a === 'skip') { row.innerHTML = '<span class="hint">Ignoré</span>'; card.classList.add('done'); return; }
+        if (b.dataset.a === 'gh') { $('ghToken').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+        b.disabled = true;
+        try {
+          const r = await launchSession(nom, minutes);
+          row.innerHTML = okTxt(`Session « ${esc(r.nom)} » lancée.`) + ' <span class="hint">Elle apparaît dans « Mes sessions » d\'ici quelques secondes.</span>';
+          card.classList.add('done');
+        } catch (err) {
+          b.disabled = false;
+          row.querySelectorAll('.cerr').forEach((x) => x.remove());
+          row.insertAdjacentHTML('beforeend', `<span class="cerr">${badTxt(esc(err.message))}</span>` + (cloud ? '' : ' <button class="btn cerr" data-a="gh" type="button">Aller à GitHub</button>'));
+        }
+      });
+      return { statut: cloud ? "proposée à l'équipe (carte avec « Lancer »), en attente de sa décision" : "proposée, mais GitHub n'est pas connecté : l'équipe doit d'abord coller son jeton GitHub (carte Connexion à GitHub)", minutes, nom: nom || null };
+    },
     proposePlan(plan, why, r) {
       const cur = simulate(myPlan);
       const card = chatCard(`<h4>${ic('list')}Plan proposé : ${r.expected.toFixed(1)} pts · ${r.endT.toFixed(1)} s</h4>` +
@@ -1306,29 +1384,34 @@
     },
   });
 
-  const TOOL_TXT = { simuler_plan: ['wrench', 'essaie une variante'], proposer_plan: ['list', 'propose un plan'], lire_reglages: ['search', 'lit les réglages'], modifier_reglages: ['sliders', 'propose des réglages'] };
+  const TOOL_TXT = { simuler_plan: ['wrench', 'essaie une variante'], proposer_plan: ['list', 'propose un plan'], lire_reglages: ['search', 'lit les réglages'], modifier_reglages: ['sliders', 'propose des réglages'], optimiser_plan: ['play', "lance l'optimisation"], lancer_session_cloud: ['cloud', 'propose une session dans le cloud'] };
   async function chatSend(text) {
     text = (text || '').trim();
     if (!text) return;
     if (assistant.busy) return;
-    if (!chatCfg.key) { $('chatSetup').open = true; $('chatKey').focus(); chatMsg('err', 'Collez d\'abord votre clé API Anthropic ci-dessus.'); return; }
+    if (!chatCfg.key) { $('chatSetup').open = true; $('chatKey').focus(); chatMsg('err', 'Collez d\'abord votre clé API Gemini ci-dessus.'); return; }
     chatMsg('me', esc(text));
     $('chatInput').value = '';
     $('chatSend').textContent = 'Stop';
     $('chatSugg').hidden = true;
-    let bubble = null, buf = '';
+    let bubble = null, buf = '', toolLine = null;
     await assistant.send(text, chatCfg.key, chatCfg.model, {
       onTurnStart() { bubble = null; buf = ''; },
       onText(d) {
         if (!bubble) bubble = chatMsg('ai typing', '');
         buf += d; bubble.textContent = buf; chatScroll();
       },
-      onTool(name, input, res) {
+      // la ligne d'outil s'affiche avant la carte que l'outil peut ajouter, puis se complète
+      onToolStart(name) {
         if (bubble) { bubble.classList.remove('typing'); bubble.innerHTML = mdLite(buf); bubble = null; buf = ''; }
+        const [tn, tt] = TOOL_TXT[name] || ['wrench', name];
+        toolLine = chatMsg('tool', ic(tn) + esc(tt));
+      },
+      onTool(name, input, res) {
         let extra = '';
         if (name === 'simuler_plan' && !res.is_error) { try { const r = JSON.parse(res.content); extra = ` → ${r.score_espere} pts, ${r.duree_s} s`; } catch (e) { /* rien */ } }
         const [tn, tt] = TOOL_TXT[name] || ['wrench', name];
-        chatMsg('tool', ic(tn) + esc(tt + extra + (res.is_error ? ' (erreur : ' + res.content.replace(/^Erreur : /, '') + ')' : '')));
+        if (toolLine) toolLine.innerHTML = ic(tn) + esc(tt + extra + (res.is_error ? ' (erreur : ' + res.content.replace(/^Erreur : /, '') + ')' : ''));
       },
       onDone() { if (bubble) { bubble.classList.remove('typing'); bubble.innerHTML = mdLite(buf); } },
       onError(msg) { if (bubble) { bubble.classList.remove('typing'); } chatMsg('err', esc(msg)); },
