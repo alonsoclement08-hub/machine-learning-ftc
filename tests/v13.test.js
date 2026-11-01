@@ -16,8 +16,10 @@ function fakeApp() {
     world: () => world, robot: () => robot, plan: () => plan, simulate: (p) => sim.run(p),
     settings: () => ({ ok: 1 }), context: () => ({}),
     proposePlan: (p, why, r) => log.plans.push({ p, why, r }), proposeSettings: (c, why) => log.settings.push({ c, why }),
-    optimize: (o) => { log.opt = o; return { statut: 'lancée' }; }, proposeSession: (nom, minutes, why) => { log.sess = { nom, minutes, why }; return { statut: 'proposée' }; },
-    showPanel: (c) => { if (c !== 'sessions') throw new Error('carte inconnue'); log.panel = c; return { statut: 'affichée' }; },
+    optimize: (o) => { log.opt = o; return { statut: 'lancée' }; },
+    launchSession: async (nom, minutes) => { log.sess = { nom, minutes }; return { statut: 'lancée' }; },
+    listSessions: async () => { throw new Error('GitHub n\'est pas connecté'); },
+    keepAiPlan: (g) => { log.keep = g; return { statut: 'ok' }; }, stopOptimization: () => ({ statut: 'arrêtée' }), setModel: (m) => ({ modele: m }),
   };
   return { app, log, start, world };
 }
@@ -66,7 +68,7 @@ test('outils : schémas JSON des outils bien formés', () => {
   assert.deepStrictEqual(plan.etapes[0], { type: 'tir', x: -40, y: -45, n: 2, courbe: [-50, -50] });
 });
 
-test('outils : lancer l\'optimisation et proposer une session cloud (valeurs vérifiées)', () => {
+test('outils : optimisation et sessions cloud pilotées par le chat', async () => {
   const { app, log } = fakeApp();
   const as = new BZ.Assistant(app);
   assert.ok(!as.runTool('optimiser_plan', {}).is_error);
@@ -74,10 +76,16 @@ test('outils : lancer l\'optimisation et proposer une session cloud (valeurs vé
   assert.ok(!as.runTool('optimiser_plan', { generations: 800, garder_ordre: false }).is_error);
   assert.deepStrictEqual(log.opt, { generations: 800, keepOrder: false });
   assert.ok(as.runTool('optimiser_plan', { generations: 3 }).is_error);
-  assert.ok(!as.runTool('lancer_session_cloud', { nom: 'essai', minutes: 120, explication: 'long' }).is_error);
-  assert.deepStrictEqual(log.sess, { nom: 'essai', minutes: 120, why: 'long' });
-  assert.ok(as.runTool('lancer_session_cloud', { minutes: 900, explication: 'x' }).is_error);
-  assert.ok(as.runTool('lancer_session_cloud', { minutes: 60 }).is_error, 'explication obligatoire');
+  const ok = await as.runTool('lancer_session_cloud', { nom: 'essai', minutes: 120 });
+  assert.ok(!ok.is_error, ok.content);
+  assert.deepStrictEqual(log.sess, { nom: 'essai', minutes: 120 });
+  assert.ok((await as.runTool('lancer_session_cloud', { minutes: 900 })).is_error);
+  const ls = await as.runTool('lister_sessions', {});
+  assert.ok(ls.is_error && /GitHub/.test(ls.content), 'erreur lisible sans GitHub');
+  assert.ok(as.runTool('charger_session', {}).is_error, 'id obligatoire');
+  assert.ok(!as.runTool('garder_plan_ia', { garder: true }).is_error);
+  assert.strictEqual(log.keep, true);
+  assert.ok(as.runTool('garder_plan_ia', {}).is_error);
 });
 
 test('réglages : une valeur envoyée en texte JSON est acceptée', () => {
@@ -88,11 +96,6 @@ test('réglages : une valeur envoyée en texte JSON est acceptée', () => {
   assert.strictEqual(log.settings[0].c[0].valeur, 0.9);
 });
 
-test('outil : afficher une carte dans le chat', () => {
-  const { app, log } = fakeApp();
-  const as = new BZ.Assistant(app);
-  assert.ok(!as.runTool('afficher_carte', { carte: 'sessions' }).is_error);
-  assert.strictEqual(log.panel, 'sessions');
-  assert.ok(as.runTool('afficher_carte', { carte: 'lune' }).is_error);
-  assert.deepStrictEqual(BZ.CHAT_TOOLS.map((t) => t.name).sort(), ['afficher_carte', 'lancer_session_cloud', 'lire_reglages', 'modifier_reglages', 'optimiser_plan', 'proposer_plan', 'simuler_plan']);
+test('liste des outils du chat', () => {
+  assert.deepStrictEqual(BZ.CHAT_TOOLS.map((t) => t.name).sort(), ['arreter_optimisation', 'arreter_session', 'changer_modele', 'charger_session', 'garder_plan_ia', 'lancer_session_cloud', 'lire_reglages', 'lister_sessions', 'modifier_reglages', 'optimiser_plan', 'proposer_plan', 'simuler_plan']);
 });

@@ -5,7 +5,7 @@ un **secret** : l'appli ne la voit jamais, donc personne ne peut la copier pour 
 Tous ceux qui utilisent l'appli ont le chat, sans coller de clé.
 
 Le relais n'accepte que :
-- les demandes du **chat BIOBUZZ** (la consigne BIOBUZZ et les 7 outils de l'appli) ;
+- les demandes du **chat BIOBUZZ** (la consigne BIOBUZZ et les outils de l'appli) ;
 - les modèles autorisés (par défaut `gemini-2.5-flash` et `gemini-2.5-flash-lite`) ;
 - l'appli en ligne (`https://alonsoclement08-hub.github.io`) et l'appli ouverte en double-cliquant sur
   `index.html` ;

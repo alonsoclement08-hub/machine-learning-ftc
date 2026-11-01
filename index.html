@@ -140,7 +140,7 @@
 
   <!-- ===================== BARRE DE DROITE : 3 PAGES ===================== -->
   <aside class="side">
-    <div class="brandline"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z" fill="var(--accent)"/><path d="M8 10h8M7.5 13h9M9 16h6" stroke="#1d1f24" stroke-width="1.6" stroke-linecap="round"/></svg><div class="brandtxt"><b>BIOBUZZ Auto IA</b><span>Planificateur d'AUTO · FTC 2026-27</span></div><span class="vtag mono" id="appVersion">v16 · 01/11</span></div>
+    <div class="brandline"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z" fill="var(--accent)"/><path d="M8 10h8M7.5 13h9M9 16h6" stroke="#1d1f24" stroke-width="1.6" stroke-linecap="round"/></svg><div class="brandtxt"><b>BIOBUZZ Auto IA</b><span>Planificateur d'AUTO · FTC 2026-27</span></div><span class="vtag mono" id="appVersion">v17 · 01/11</span></div>
     <div class="pager-head">
       <button class="btn icon ghost" id="pagePrev" type="button" aria-label="Page précédente"><svg class="ic" aria-hidden="true"><use href="#i-chev-left"/></svg></button>
       <div class="pager-dots" role="tablist">
@@ -306,41 +306,26 @@
         <div class="card chatcard" id="chatCard">
           <div class="chat-head">
             <h2 class="h-ic"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg>Assistant IA</h2>
-            <button class="btn ghost chat-keybtn" id="chatKeyBtn" type="button" title="Accès à Gemini (clé API, modèle)"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg><span id="chatSetupSum">Accès à Gemini</span></button>
+            <span class="chat-model" title="Modèle Gemini utilisé"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg><span id="chatSetupSum">Gemini</span></span>
             <button class="btn ghost" id="chatNew" type="button" title="Nouvelle discussion"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Nouvelle</button>
           </div>
           <div id="chatLog" class="chatlog" aria-live="polite"></div>
-          <div class="chat-actions" id="chatActions" role="toolbar" aria-label="Actions rapides">
-            <button class="chip2" type="button" data-panel="opt"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg>Optimiser</button>
-            <button class="chip2" type="button" data-panel="launch"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>Nouvelle session</button>
-            <button class="chip2" type="button" data-panel="sessions"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg>Mes sessions</button>
-            <button class="chip2" type="button" data-panel="github"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>GitHub</button>
-            <button class="chip2" type="button" data-panel="key"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg>Clé Gemini</button>
-          </div>
           <div class="chat-sugg" id="chatSugg">
+            <button class="chip2" type="button">Optimise mon plan</button>
+            <button class="chip2" type="button">Lance une session de 2 h</button>
+            <button class="chip2" type="button">Où en sont mes sessions ?</button>
             <button class="chip2" type="button">Pourquoi je ne fais pas 2 bascules ?</button>
-            <button class="chip2" type="button">Rends mon trajet plus rapide</button>
-            <button class="chip2" type="button">Que dois-je mesurer sur mon robot ?</button>
             <button class="chip2" type="button">Propose un meilleur plan</button>
+            <button class="chip2" type="button">Que dois-je mesurer sur mon robot ?</button>
           </div>
           <form id="chatForm" class="chatform">
-            <textarea id="chatInput" rows="2" placeholder="Posez une question sur votre AUTO…"></textarea>
+            <textarea id="chatInput" rows="2" placeholder="Écrivez ici : « optimise mon plan », « lance une session de 2 h »…"></textarea>
             <button class="btn primary" id="chatSend" type="submit">Envoyer</button>
           </form>
         </div>
 
-        <!-- Cartes affichées dans le chat à la demande (boutons ci-dessus ou par l'IA) -->
+        <!-- Moteur de l'optimisation et des sessions (piloté par le chat, jamais affiché) -->
         <div id="chatPanels" hidden>
-        <div class="panel" id="panel-key">
-          <div class="panel-head"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg><b>Accès à Gemini</b></div>
-          <div id="relayRow" hidden><p class="hint">L'équipe a un <b>relais</b> : le chat utilise la clé de l'équipe, rien à coller. Si l'équipe a mis un code, collez-le ici.</p><label>Code d'équipe <input id="chatCode" type="password" placeholder="facultatif" autocomplete="off"></label></div>
-            <p class="hint">Le chat utilise l'API <b>Gemini</b> de Google : il faut une <b>clé API</b> (gratuite pour commencer, avec un quota). Créez-la sur <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com/app/apikey</a> (« Create API key »). Elle reste dans ce navigateur et part directement chez Google. Ne la partagez pas.</p>
-            <label><span id="chatKeyLbl">Votre clé API Gemini</span> <span class="keyrow"><input id="chatKey" type="password" placeholder="Collez votre clé Gemini ici" autocomplete="off" spellcheck="false"><button class="btn icon ghost" id="chatKeyShow" type="button" title="Afficher / masquer la clé" aria-label="Afficher la clé"><svg class="ic" aria-hidden="true"><use href="#i-eye"/></svg></button></span></label>
-            <label>Modèle <select id="chatModel"></select><small id="chatModelHint">La liste complète s'affiche une fois la clé enregistrée.</small></label>
-            <div class="row"><button class="btn primary" id="chatSaveKey" type="button">Enregistrer</button><button class="btn ghost" id="chatForget" type="button">Oublier la clé</button></div>
-            <div id="chatKeyStatus" class="status"></div>
-          
-        </div>
         <div class="panel" id="panel-opt">
           <div class="panel-head"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg><b>Optimiser avec l'IA</b></div>
           <p class="hint">L'IA part de <b>votre plan</b> et essaie des milliers de variantes : points de tir, courbes, nombre de balles, départ.</p>

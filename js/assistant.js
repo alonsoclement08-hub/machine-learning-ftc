@@ -167,22 +167,46 @@
       },
     },
     {
-      name: 'afficher_carte',
-      description: "Affiche dans le chat une carte de réglages de l'appli, pour que l'équipe s'en serve : cle (clé API Gemini et modèle), optimisation (lancer / suivre / recommencer l'optimisation, charger un résultat), nouvelle_session (lancer une session dans le cloud), sessions (liste des sessions et meilleur résultat), github (connexion GitHub). Tout se fait dans le chat : utilise-le quand l'équipe veut voir ou régler une de ces choses.",
-      parameters: { type: 'object', properties: { carte: { type: 'string', enum: ['cle', 'optimisation', 'nouvelle_session', 'sessions', 'github'] } }, required: ['carte'] },
+      name: 'arreter_optimisation',
+      description: "Arrête l'optimisation en cours sur cet ordinateur (le meilleur plan trouvé reste en aperçu).",
+      parameters: { type: 'object', properties: {} },
+    },
+    {
+      name: 'garder_plan_ia',
+      description: "Quand l'équipe a décidé : garder le plan trouvé par l'optimisation (garder = true, il remplace son plan) ou revenir à son plan (false). Ne l'appelle que sur une demande claire de l'équipe.",
+      parameters: { type: 'object', properties: { garder: { type: 'boolean' } }, required: ['garder'] },
     },
     {
       name: 'lancer_session_cloud',
-      description: "Propose de lancer un entraînement long sur un serveur GitHub (la session continue même ordinateur éteint, 340 min au plus) avec le robot, le match et le plan actuels. L'appli affiche une carte avec le bouton « Lancer » : l'équipe décide. Il faut que GitHub soit connecté (sinon la carte l'explique).",
+      description: "Lance tout de suite un entraînement long sur un serveur GitHub (la session continue même ordinateur éteint, 340 min au plus) avec le robot, le match et le plan actuels. Appelle-le quand l'équipe le demande ; demande la durée si elle n'est pas claire. Il faut que GitHub soit connecté : sinon l'outil renvoie une erreur et tu expliques comment coller le jeton dans le chat.",
       parameters: {
         type: 'object',
         properties: {
           nom: { type: 'string', description: 'nom court de la session, ex. « départ gauche 2 bascules »' },
           minutes: { type: 'integer', description: 'durée en minutes, de 5 à 340' },
-          explication: { type: 'string' },
         },
-        required: ['minutes', 'explication'],
+        required: ['minutes'],
       },
+    },
+    {
+      name: 'lister_sessions',
+      description: "Renvoie les sessions dans le cloud (nom, id, statut, avancement, meilleur score, bascules, fautes) et la meilleure. Utilise-le pour répondre à « où en sont mes sessions ? » ou avant de charger / arrêter une session.",
+      parameters: { type: 'object', properties: {} },
+    },
+    {
+      name: 'charger_session',
+      description: "Charge le résultat d'une session dans l'appli (robot, match et meilleur plan de la session remplacent ceux de l'appli, visibles sur le terrain, code prêt dans la page Code). id = l'id donné par lister_sessions, ou \"meilleure\".",
+      parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    },
+    {
+      name: 'arreter_session',
+      description: "Arrête une session en cours dans le cloud (son dernier point d'étape est gardé). Demande d'abord confirmation à l'équipe, puis appelle-le avec l'id de lister_sessions.",
+      parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    },
+    {
+      name: 'changer_modele',
+      description: "Change le modèle Gemini utilisé par le chat (à partir du prochain message). Sans paramètre : renvoie la liste des modèles disponibles.",
+      parameters: { type: 'object', properties: { modele: { type: 'string' } } },
     },
   ];
   const PLAN_SCHEMA = {
@@ -223,7 +247,8 @@
     return [
       "Tu es l'assistant d'une équipe FIRST Tech Challenge (lycéens) qui prépare l'AUTO de 30 s du jeu BIOBUZZ 2026-2027 dans l'appli « BIOBUZZ Auto IA ». Réponds en français simple et concret, sans jargon, en peu de mots.",
       "Ce que tu peux faire : expliquer le plan et son score, trouver pourquoi il perd du temps ou rate des bascules, simuler des variantes avec simuler_plan, puis proposer un plan (proposer_plan) ou des réglages (modifier_reglages). L'équipe décide : tes propositions s'affichent avec un bouton « Appliquer ». N'annonce jamais un score que le simulateur n'a pas donné. Teste toujours un plan avec simuler_plan avant de le proposer. Ne change un réglage du robot que s'il vient d'une mesure de l'équipe ou d'une demande claire.",
-      "Tout se fait dans ce chat (il n'y a pas d'autre écran pour l'optimisation ou les sessions) : afficher_carte montre la carte voulue (clé, optimisation, nouvelle session, sessions, GitHub). Optimisation : optimiser_plan lance l'algorithme génétique de l'appli sur cet ordinateur (il tourne en arrière-plan ; l'équipe voit l'aperçu sur le terrain et décide de le garder). lancer_session_cloud propose une longue session sur un serveur GitHub (jusqu'à 340 min, ordinateur éteint possible) : l'équipe confirme avec « Lancer ». L'état de l'optimisation et des sessions est dans la situation envoyée avec chaque message.",
+      "Tout se fait dans ce chat, en parlant : il n'y a pas d'autre écran pour l'optimisation ou les sessions. Optimisation : optimiser_plan lance l'algorithme génétique de l'appli sur cet ordinateur (il tourne en arrière-plan ; l'équipe voit l'aperçu sur le terrain et décide de le garder). quand elle se termine, l'appli t'envoie un message [Événement de l'appli] avec le résultat : annonce-le en 2 ou 3 phrases (score avant → après, bascules, fautes) et demande si l'équipe garde ce plan (garder_plan_ia). Sessions dans le cloud (serveur GitHub, jusqu'à 340 min, ordinateur éteint possible) : lancer_session_cloud la lance quand l'équipe le demande, lister_sessions donne leur état, charger_session charge un résultat, arreter_session arrête (après confirmation). Une session terminée t'est aussi annoncée par un [Événement de l'appli]. L'état de l'optimisation et des sessions est dans la situation envoyée avec chaque message.",
+      "Clés et jetons : l'équipe colle sa clé Gemini ou son jeton GitHub (github_pat_…) SEUL dans un message du chat ; l'appli l'intercepte et le garde dans le navigateur, tu ne le vois jamais. Si GitHub n'est pas connecté, explique-le ainsi : créer un jeton sur github.com/settings/personal-access-tokens/new (dépôt machine-learning-ftc, permissions Actions et Contents en lecture et écriture) puis le coller seul dans le chat. Ne demande jamais de coller une clé avec d'autre texte.",
       "Repère (celui du simulateur, alliance rouge ; le même programme marche en bleu) : pouces, origine au centre du terrain, x vers la droite vu du public, y en s'éloignant du public, cap en degrés dans le sens trigonométrique (0° = vers +x, le centre du terrain). Notre côté : x entre -72 et 0 (passer x > 0 est une faute G402). Murs à ±72.",
       `HIVE au centre (x de -22 à 0, y de -19 à 19 : on ne la touche pas, on ne passe pas dessous). Au départ la CELL du haut s'ouvre vers les y négatifs : on tire depuis y < -17, cible (${r1(c[0].x)}, ${r1(c[0].y)}). Après une bascule, c'est l'autre CELL qui est en haut, ouverte vers les y positifs : on tire depuis y > 17, cible (${r1(c[1].x)}, ${r1(c[1].y)}). Tirer de derrière l'ouverture ne marque pas. La précision est meilleure bien en face de l'ouverture et à la distance idéale du lanceur.`,
       `Balles : 4 POLLEN préchargés dans le robot (capacité 4). ${F}. GARDEN (src "jardin") : 4 POLLEN le long du mur y = -71, près de x = -66. LOADING ZONE : x de ${r1(z.x0)} à ${r1(z.x1)}, y de ${r1(z.y0)} à ${r1(z.y1)} (PARK = finir en partie dedans ; après chaque bascule le joueur humain y pose 1 NECTAR, src "nectar", si l'option est cochée).`,
@@ -241,7 +266,7 @@
 
   Assistant.prototype.reset = function () { this.messages = []; };
 
-  // Exécute un outil demandé par l'IA ; renvoie { content, is_error }.
+  // Exécute un outil demandé par l'IA ; renvoie { content, is_error } (ou une promesse pour les outils GitHub).
   Assistant.prototype.runTool = function (name, input) {
     const app = this.app;
     try {
@@ -263,13 +288,24 @@
         const st = app.optimize({ generations: gens, keepOrder: input.garder_ordre !== false });
         return { content: JSON.stringify(st) };
       }
-      if (name === 'afficher_carte') return { content: JSON.stringify(app.showPanel(input.carte)) };
+      if (name === 'arreter_optimisation') return { content: JSON.stringify(app.stopOptimization()) };
+      if (name === 'garder_plan_ia') {
+        if (typeof input.garder !== 'boolean') throw new Error('garder : true ou false');
+        return { content: JSON.stringify(app.keepAiPlan(input.garder)) };
+      }
+      if (name === 'changer_modele') return { content: JSON.stringify(app.setModel(typeof input.modele === 'string' ? input.modele.trim() : '')) };
+      // outils qui parlent à GitHub : réponse asynchrone
+      const later = (fn) => Promise.resolve().then(fn).then((r) => ({ content: JSON.stringify(r) }), (e) => ({ content: 'Erreur : ' + (e.message || e), is_error: true }));
       if (name === 'lancer_session_cloud') {
         const minutes = Math.round(Number(input.minutes));
         if (!isFinite(minutes) || minutes < 5 || minutes > 340) throw new Error('minutes : entre 5 et 340');
-        if (typeof input.explication !== 'string') throw new Error('"explication" manquante');
         const nom = typeof input.nom === 'string' ? input.nom.trim().slice(0, 60) : '';
-        return { content: JSON.stringify(app.proposeSession(nom, minutes, input.explication)) };
+        return later(() => app.launchSession(nom, minutes));
+      }
+      if (name === 'lister_sessions') return later(() => app.listSessions());
+      if (name === 'charger_session' || name === 'arreter_session') {
+        if (typeof input.id !== 'string' || !input.id) throw new Error('id manquant (voir lister_sessions)');
+        return later(() => (name === 'charger_session' ? app.loadSession(input.id) : app.cancelSession(input.id)));
       }
       if (name === 'modifier_reglages') {
         const ch = BZ.settingsFromTool(input.changements);
@@ -406,16 +442,17 @@
           if (out.finish === 'MAX_TOKENS') ui.onError('Réponse trop longue, coupée. Posez une question plus précise.');
           break;
         }
-        const results = calls.map((p) => {
+        const results = [];
+        for (const p of calls) {
           const fc = p.functionCall;
           ui.onToolStart && ui.onToolStart(fc.name, fc.args);
-          const res = this.runTool(fc.name, fc.args || {});
+          const res = await this.runTool(fc.name, fc.args || {});
           ui.onTool && ui.onTool(fc.name, fc.args, res);
           let payload;
           try { payload = JSON.parse(res.content); } catch (e) { payload = res.content; }
           const response = res.is_error ? { error: res.content } : { result: payload };
-          return { functionResponse: Object.assign({ name: fc.name, response }, fc.id ? { id: fc.id } : {}) };
-        });
+          results.push({ functionResponse: Object.assign({ name: fc.name, response }, fc.id ? { id: fc.id } : {}) });
+        }
         this.messages.push({ role: 'user', parts: results });
       }
       ui.onDone && ui.onDone();

@@ -758,7 +758,7 @@
     $('evalCount').textContent = String(opt.evals);
     drawChart();
     pushState();
-    if (opt.generation >= maxGen) { stopTraining(); return; }
+    if (opt.generation >= maxGen) { stopTraining(); onOptimizationDone(); return; }
     requestAnimationFrame(trainLoop);
   }
   function startTraining() {
@@ -1114,8 +1114,13 @@
     return { java: BZ.exportJava(r, r2, { startText }), blk: BZ.exportBlockly(r, r2, { startText }) };
   }
 
+  let sessKnown = null; // statut des sessions au dernier passage (pour annoncer celles qui se terminent)
   function renderSessions(list) {
+    const ended = sessKnown ? list.filter((x) => x.status === 'completed' && sessKnown[x.id] && sessKnown[x.id] !== 'completed') : [];
+    sessKnown = {};
+    for (const x of list) sessKnown[x.id] = x.status;
     lastSessions = list;
+    for (const x of ended) chatEvent(`La session dans le cloud « ${x.nom} » (id ${x.id}) vient de se terminer : ${JSON.stringify(sessBrief(x))}. Annonce-le et propose de charger son résultat (charger_session).`);
     const best = BZ.bestSession(list);
     const running = list.filter((s) => s.status !== 'completed').length;
     $('optDotLabel').textContent = running ? `Assistant (${running} en cours)` : 'Assistant';
@@ -1196,7 +1201,7 @@
 
   // Lance une session dans le cloud (bouton de la page, ou carte proposée par le chat). Lève une erreur lisible.
   async function launchSession(nom, minutes) {
-    if (!cloud && !(await ghConnect(false))) throw new Error('Connectez d\'abord GitHub (bouton « GitHub » sous le chat).');
+    if (!cloud && !(await ghConnect(false))) throw new Error('GitHub n\'est pas connecté : l\'équipe doit coller son jeton GitHub (github_pat_…) seul dans le chat.');
     minutes = Math.max(5, Math.min(340, minutes || 300));
     nom = (nom || '').trim() || `${robot.nom} · ${new Date().toLocaleDateString('fr-FR')}`;
     await cloud.launch(nom, minutes, { version: 1, nom, minutes, robot, game, plan: myPlan, keepOrder: $('keepOrder').checked });
@@ -1218,7 +1223,7 @@
   });
   if (ghSettings && ghSettings.token) ghConnect(true);
 
-  // ---------------- Assistant IA (page 2) : Gemini ----------------
+  // ---------------- Assistant IA (page 2) : Gemini, tout se fait dans le chat ----------------
   const CHAT_KEY = 'biobuzz-gemini-v1';
   let chatCfg = { key: '', model: BZ.CHAT_MODELS[0].id };
   try { chatCfg = Object.assign(chatCfg, JSON.parse(localStorage.getItem(CHAT_KEY) || '{}')); } catch (e) { /* rien */ }
@@ -1228,47 +1233,22 @@
   // relais de l'équipe (js/config.js) : utilisé quand personne n'a mis sa propre clé
   const relay = typeof window.BIOBUZZ_RELAIS_GEMINI === 'string' ? window.BIOBUZZ_RELAIS_GEMINI.trim() : '';
   const chatAuth = () => (chatCfg.key ? { key: chatCfg.key } : relay ? { relay, code: chatCfg.code || '' } : null);
-  if (relay) { $('relayRow').hidden = false; $('chatKeyLbl').textContent = 'Votre propre clé API Gemini (facultatif : sinon, clé de l\'équipe)'; }
-  $('chatCode').value = chatCfg.code || '';
   let chatModels = BZ.CHAT_MODELS.slice();
-  function fillModels() {
-    if (!chatModels.some((m) => m.id === chatCfg.model)) chatModels.unshift({ id: chatCfg.model, nom: chatCfg.model });
-    $('chatModel').innerHTML = chatModels.map((m) => `<option value="${esc(m.id)}">${esc(m.nom)}</option>`).join('');
-    $('chatModel').value = chatCfg.model;
-  }
-  // avec une clé : la vraie liste des modèles Gemini de ce compte
-  async function loadModels(fromSave) {
-    if (!chatAuth()) return;
-    if (fromSave) $('chatKeyStatus').textContent = 'Vérification de la clé…';
-    try {
-      const list = await BZ.geminiModels(chatAuth());
-      if (fromSave) $('chatKeyStatus').innerHTML = okTxt(chatCfg.key ? 'Clé enregistrée et vérifiée : le chat est prêt.' : 'Relais de l\'équipe joignable : le chat est prêt.');
-      if (list.length) {
-        chatModels = list;
-        if (!list.some((m) => m.id === chatCfg.model)) { chatCfg.model = (list.find((m) => /flash/i.test(m.id) && !/lite/i.test(m.id)) || list[0]).id; saveChat(); }
-        fillModels();
-        $('chatModelHint').textContent = `${list.length} modèle${list.length > 1 ? 's' : ''} disponible${list.length > 1 ? 's' : ''}` + (chatCfg.key ? ' avec cette clé.' : ' avec la clé de l\'équipe.');
-      }
-    } catch (err) {
-      $('chatModelHint').textContent = BZ.chatErrorText(err);
-      if (fromSave) $('chatKeyStatus').innerHTML = badTxt(esc(BZ.chatErrorText(err)));
-      if (err.reason === 'CODE_EQUIPE') showPanel('key');
-    }
-  }
-  fillModels();
-  $('chatKey').value = chatCfg.key;
-  const chatSetupLabel = () => {
-    const nom = (chatModels.find((m) => m.id === chatCfg.model) || {}).nom || chatCfg.model;
-    $('chatSetupSum').textContent = chatCfg.key ? `Votre clé Gemini · ${nom}` : relay ? `Clé de l'équipe (relais) · ${nom}` : 'Clé API Gemini (à configurer)';
-  };
-  chatSetupLabel();
+  const modelName = () => (chatModels.find((m) => m.id === chatCfg.model) || {}).nom || chatCfg.model;
+  const chatSetupLabel = () => { $('chatSetupSum').textContent = chatAuth() ? modelName() + (chatCfg.key ? '' : ' · clé de l\'équipe') : 'pas encore de clé Gemini'; };
   const saveChat = () => { try { localStorage.setItem(CHAT_KEY, JSON.stringify(chatCfg)); } catch (e) { /* rien */ } chatSetupLabel(); };
-  loadModels();
-  $('chatSaveKey').addEventListener('click', () => { chatCfg.key = $('chatKey').value.trim(); chatCfg.code = $('chatCode').value.trim(); chatCfg.model = $('chatModel').value; saveChat(); loadModels(true).then(() => { if (/vérifiée|prêt/.test($('chatKeyStatus').textContent)) chatMsg('ai', 'C\'est bon, je suis prêt. Posez-moi une question sur votre AUTO, ou utilisez les boutons sous le chat.'); }); });
-  $('chatKey').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('chatSaveKey').click(); } });
-  $('chatKeyShow').addEventListener('click', () => { const k = $('chatKey'); k.type = k.type === 'password' ? 'text' : 'password'; });
-  $('chatModel').addEventListener('change', () => { chatCfg.model = $('chatModel').value; saveChat(); });
-  $('chatForget').addEventListener('click', () => { $('chatKeyStatus').textContent = 'Clé oubliée sur cet appareil.'; chatCfg.key = ''; $('chatKey').value = ''; saveChat(); try { localStorage.removeItem(CHAT_KEY); } catch (e) { /* rien */ } });
+  // avec une clé : la vraie liste des modèles Gemini de ce compte (lève l'erreur si la clé est refusée)
+  async function loadModels() {
+    const list = await BZ.geminiModels(chatAuth());
+    if (list.length) {
+      chatModels = list;
+      if (!list.some((m) => m.id === chatCfg.model)) chatCfg.model = (list.find((m) => /flash/i.test(m.id) && !/lite/i.test(m.id)) || list[0]).id;
+      saveChat();
+    }
+    return list;
+  }
+  chatSetupLabel();
+  if (chatAuth()) loadModels().catch(() => { /* l'erreur sera dite au premier message */ });
 
   const settingTarget = (chemin) => (chemin.startsWith('robot.') ? [robot, chemin.slice(6)] : [game, chemin.slice(6)]);
   const readSetting = (chemin) => { const [o, p] = settingTarget(chemin); return clone(getPath(o, p)); };
@@ -1303,33 +1283,85 @@
     return d;
   }
 
-  // Cartes de réglages (clé, optimisation, sessions, GitHub) : elles s'affichent dans le chat, au bas
-  // de la discussion, quand on les demande (boutons sous le chat, ou l'IA). Une seule de chaque.
-  const PANEL_INTRO = {
-    key: 'Accès à Gemini : collez votre clé API et choisissez le modèle.',
-    opt: 'Voici l\'optimisation : l\'IA part de votre plan et essaie des milliers de variantes.',
-    launch: 'Nouvelle session dans le cloud : elle continue même ordinateur éteint.',
-    sessions: 'Vos sessions dans le cloud :',
-    github: 'Connexion à GitHub (une seule fois), pour lancer et suivre les sessions dans le cloud :',
-  };
-  function showPanel(name, intro, stay) {
-    const el = $('panel-' + name);
-    if (!el) return null;
-    if (pageIdx !== 1 && !stay) goPage(1);
-    if (intro !== false) chatMsg('ai', esc(intro || PANEL_INTRO[name] || ''));
-    chatLog.appendChild(el);
-    chatScroll();
-    if (name === 'sessions' && cloud) refreshSessions(true);
-    if (name === 'opt') drawChart();
-    return el;
+  // Clés et jetons collés dans le chat : interceptés ici, gardés dans le navigateur, jamais envoyés à l'IA.
+  const GEMINI_RE = /(AIza[0-9A-Za-z_-]{30,}|AQ\.[0-9A-Za-z_-]{20,})/;
+  const GH_RE = /(github_pat_[0-9A-Za-z_]{20,}|gh[pousr]_[0-9A-Za-z]{20,})/;
+  const mask = (k) => k.slice(0, 6) + '••••' + k.slice(-4);
+  async function useGeminiKey(k) {
+    const old = chatCfg.key;
+    chatCfg.key = k;
+    const wait = chatMsg('ai', 'Je vérifie la clé auprès de Google…');
+    try {
+      const list = await loadModels();
+      wait.innerHTML = okTxt('Clé Gemini enregistrée sur cet appareil.') + ` ${esc(list.length + (list.length > 1 ? ' modèles disponibles' : ' modèle disponible') + ', j\'utilise ' + modelName() + '.')} Je suis prêt : demandez-moi par exemple « optimise mon plan » ou « lance une session de 2 h ».`;
+    } catch (err) {
+      chatCfg.key = old; saveChat();
+      wait.className = 'msg err';
+      wait.textContent = BZ.chatErrorText(err) + ' La clé n\'a pas été enregistrée.';
+    }
   }
-  // avant d'effacer la discussion, les cartes retournent dans leur réserve
-  const parkPanels = () => chatLog.querySelectorAll('.panel').forEach((el) => $('chatPanels').appendChild(el));
-  function chatWelcome() {
-    // le résultat cloud d'abord, la demande de clé en dernier (c'est elle qu'on voit en bas du chat)
-    if (window.CLOUD_RESULT && window.CLOUD_RESULT.plan) showPanel('opt', 'Un résultat d\'entraînement dans le cloud est disponible : vous pouvez le charger ici.', true);
-    if (!chatAuth()) showPanel('key', 'Bonjour ! Je suis l\'assistant BIOBUZZ. Pour discuter, collez d\'abord votre clé API Gemini :', true);
-    else chatMsg('ai', 'Bonjour ! Je peux expliquer votre plan, trouver ce qui coince, l\'optimiser et lancer des sessions dans le cloud. Écrivez-moi, ou utilisez les boutons sous le chat.');
+  async function useGithubToken(t) {
+    $('ghToken').value = t;
+    const wait = chatMsg('ai', 'Je me connecte à GitHub…');
+    if (await ghConnect(false)) {
+      wait.innerHTML = okTxt(`GitHub connecté (${esc(ghSettings.owner + '/' + ghSettings.repo)}, branche ${esc(ghSettings.branch)}).`) + ' Le jeton reste dans ce navigateur. Vous pouvez me demander de lancer une session ou de suivre vos sessions.';
+    } else {
+      wait.className = 'msg err';
+      wait.textContent = 'Connexion à GitHub impossible : ' + $('ghState').textContent;
+    }
+  }
+  // Commandes simples gérées sans l'IA ; renvoie true si le message est traité.
+  async function localCommand(text) {
+    const gm = text.match(GEMINI_RE), hm = text.match(GH_RE);
+    if (gm || hm) {
+      const k = (gm || hm)[0];
+      chatMsg('me', esc(text.replace(k, mask(k))));
+      if (text.trim() !== k) { chatMsg('err', 'Par sécurité, rien n\'a été envoyé : collez la clé ou le jeton seul dans un message, sans autre texte.'); return true; }
+      if (gm) await useGeminiKey(k); else await useGithubToken(k);
+      return true;
+    }
+    const code = text.match(/^code d['’]équipe\s*:?\s*(\S+)$/i);
+    if (code) { chatMsg('me', 'Code d\'équipe : ••••'); chatCfg.code = code[1]; saveChat(); chatMsg('ai', 'Code d\'équipe enregistré sur cet appareil.'); return true; }
+    if (/^(oublie|efface|supprime)\s+(ma|la)\s+clé/i.test(text)) { chatMsg('me', esc(text)); chatCfg.key = ''; saveChat(); chatMsg('ai', 'Clé Gemini oubliée sur cet appareil.' + (chatAuth() ? ' J\'utilise maintenant la clé de l\'équipe.' : ' Collez une nouvelle clé pour continuer.')); return true; }
+    if (/^(oublie|efface|supprime)\s+(mon|le)\s+jeton/i.test(text)) { chatMsg('me', esc(text)); $('ghForget').click(); chatMsg('ai', 'Jeton GitHub oublié sur cet appareil.'); return true; }
+    if (!chatAuth()) {
+      chatMsg('me', esc(text));
+      chatMsg('ai', 'Pour discuter, collez d\'abord votre clé API Gemini, seule dans un message. Vous la créez gratuitement sur aistudio.google.com/app/apikey (« Create API key ») ; elle reste dans ce navigateur.');
+      return true;
+    }
+    return false;
+  }
+
+  // Événements de l'appli racontés par l'IA (fin d'optimisation, session terminée) : en file d'attente.
+  const pendingEvents = [];
+  function chatEvent(text) {
+    if (!chatAuth()) return;
+    pendingEvents.push('[Événement de l\'appli] ' + text);
+    flushEvents();
+  }
+  function flushEvents() {
+    if (assistant.busy || !pendingEvents.length) return;
+    chatSend(pendingEvents.shift(), true);
+  }
+  const brief = (r) => (r ? { score_espere: Math.round(r.expected * 10) / 10, duree_s: Math.round(r.endT * 10) / 10, bascules_esperees: Math.round(r.eTips * 100) / 100, chances_2_bascules: Math.round(r.tipsAtLeast[2] * 100) + ' %', fautes: r.faults.map((f) => f.rule) } : null);
+  let optAnnounce = false;
+  function onOptimizationDone() {
+    if (!optAnnounce) return;
+    optAnnounce = false;
+    chatEvent(`L'optimisation est terminée (${opt ? opt.generation : 0} générations). Plan de l'équipe : ${JSON.stringify(brief(simulate(myPlan)))}. Meilleur plan trouvé, en aperçu sur le terrain : ${JSON.stringify(brief(opt && opt.best ? opt.best.result : null))}. Annonce le résultat et demande si l'équipe garde ce plan.`);
+  }
+  const sessLabel = (s) => (s.status === 'queued' || s.status === 'waiting' || s.status === 'requested' || s.status === 'pending' ? 'en attente'
+    : s.status !== 'completed' ? 'en cours' : s.conclusion === 'success' ? 'terminée' : s.conclusion === 'cancelled' ? 'annulée' : 'échouée');
+  const sessBrief = (s) => {
+    const r = s.result;
+    const o = { id: String(s.id), nom: s.nom, statut: sessLabel(s), lancee_le: fmtDate(s.debut) };
+    if (s.status !== 'completed' && s.debut) o.minutes_ecoulees = Math.round((Date.now() - new Date(s.debut).getTime()) / 60000);
+    if (r) Object.assign(o, { minutes_prevues: r.minutesPrevues || null, meilleur_score: Math.round(r.score * 10) / 10, resultat_final: !!r.termine, bascules_esperees: r.bascules, leave: r.leave, park: r.park, duree_plan_s: r.duree, fautes: r.fautes, robot: r.robot ? r.robot.nom : null });
+    return o;
+  };
+  async function needCloud() {
+    if (cloud) return;
+    if (!(ghSettings && ghSettings.token && (await ghConnect(true)))) throw new Error('GitHub n\'est pas connecté : l\'équipe doit coller son jeton GitHub (github_pat_…) seul dans le chat.');
   }
 
   const assistant = new BZ.Assistant({
@@ -1347,65 +1379,88 @@
         en_cours: training,
         generation: opt ? opt.generation : 0,
         meilleur_score: opt && opt.best ? Math.round(opt.best.result.expected * 10) / 10 : null,
-        apercu_affiche: !!aiPreview,
+        apercu_du_plan_ia_affiche: !!aiPreview,
       },
-      sessions_cloud: cloud
-        ? { github_connecte: true, sessions: lastSessions.slice(0, 8).map((x) => ({ nom: x.nom, statut: x.status, score: x.result ? Math.round(x.result.score * 10) / 10 : null })) }
-        : { github_connecte: false },
+      sessions_cloud: cloud ? { github_connecte: true, sessions: lastSessions.slice(0, 8).map(sessBrief) } : { github_connecte: false },
+      resultat_cloud_disponible: window.CLOUD_RESULT && window.CLOUD_RESULT.plan ? { score: window.CLOUD_RESULT.score, id_pour_charger: 'resultat_cloud' } : null,
     }),
     optimize({ generations, keepOrder }) {
       $('maxGen').value = String(generations);
       if ($('keepOrder').checked !== keepOrder) { $('keepOrder').checked = keepOrder; opt = null; }
       if (opt && opt.generation >= generations) opt = null; // déjà fini : on repart de zéro
+      optAnnounce = true;
       if (!training) startTraining();
-      const card = chatCard(`<h4>${ic('sliders')}Optimisation lancée</h4><div class="hint" data-prog>Génération 0 / ${generations}</div>` +
-        '<div class="row"><button class="btn" data-a="see" type="button">Détails</button><button class="btn ghost" data-a="stop" type="button">Arrêter</button></div>');
+      const card = chatCard(`<h4>${ic('sliders')}Optimisation en cours</h4><div class="hint" data-prog>Génération 0 / ${generations}</div>` +
+        '<div class="row"><button class="btn ghost" data-a="stop" type="button">Arrêter</button></div>');
       const prog = card.querySelector('[data-prog]');
       const tick = setInterval(() => {
         const g = opt ? opt.generation : 0, b = opt && opt.best ? opt.best.result : null;
         prog.textContent = `Génération ${g} / ${generations}` + (b ? ` · meilleur : ${b.expected.toFixed(1)} pts, ${b.endT.toFixed(1)} s` : '');
         if (!training) {
           clearInterval(tick);
-          card.querySelector('.row').innerHTML = b ? `${okTxt('Terminé')} <button class="btn primary" data-a="keep" type="button">Garder ce plan</button>` : '<span class="hint">Arrêté.</span>';
+          card.querySelector('h4').innerHTML = ic('sliders') + 'Optimisation terminée';
+          card.querySelector('.row').innerHTML = b && aiPreview ? '<button class="btn primary" data-a="keep" type="button">Garder ce plan</button><button class="btn ghost" data-a="drop" type="button">Revenir à mon plan</button>' : '<span class="hint">Arrêtée.</span>';
         }
       }, 400);
       card.addEventListener('click', (e) => {
         const b = e.target.closest('[data-a]');
         if (!b) return;
-        if (b.dataset.a === 'see') showPanel('opt');
-        else if (b.dataset.a === 'stop') stopTraining();
+        if (b.dataset.a === 'stop') { optAnnounce = false; stopTraining(); }
         else if (b.dataset.a === 'keep' && aiPreview) { keepAi(); card.querySelector('.row').innerHTML = okTxt('Plan gardé (Annuler pour revenir)'); card.classList.add('done'); }
+        else if (b.dataset.a === 'drop') { dropAi(); card.querySelector('.row').innerHTML = '<span class="hint">Votre plan est gardé.</span>'; card.classList.add('done'); }
       });
-      return { statut: "lancée sur cet ordinateur ; l'aperçu du meilleur plan s'affiche sur le terrain et l'équipe choisit de le garder", generations, garder_ordre: keepOrder };
+      return { statut: "lancée sur cet ordinateur ; à la fin, l'appli t'enverra le résultat", generations, garder_ordre: keepOrder };
     },
-    showPanel(name) {
-      const map = { cle: 'key', optimisation: 'opt', nouvelle_session: 'launch', sessions: 'sessions', github: 'github' };
-      if (!map[name]) throw new Error('panneau : ' + Object.keys(map).join(', '));
-      showPanel(map[name], false);
-      return { statut: 'carte affichée dans le chat' };
+    stopOptimization() {
+      if (!training) return { statut: 'aucune optimisation en cours' };
+      optAnnounce = false;
+      stopTraining();
+      return { statut: 'arrêtée', generation: opt ? opt.generation : 0, meilleur: brief(opt && opt.best ? opt.best.result : null) };
     },
-    proposeSession(nom, minutes, why) {
-      const card = chatCard(`<h4>${ic('cloud')}Session dans le cloud : ${minutes} min</h4>` +
-        `<div class="hint">${nom ? '« ' + esc(nom) + ' » · ' : ''}robot, match et plan actuels${cloud ? '' : ' · GitHub non connecté : connectez-le d\'abord (bouton « GitHub »)'}</div>` +
-        `<div>${mdLite(why)}</div><div class="row"><button class="btn primary" data-a="go" type="button">${ic('cloud')}Lancer</button><button class="btn ghost" data-a="skip" type="button">Ignorer</button></div>`);
-      card.addEventListener('click', async (e) => {
-        const b = e.target.closest('[data-a]');
-        if (!b) return;
-        const row = card.querySelector('.row');
-        if (b.dataset.a === 'skip') { row.innerHTML = '<span class="hint">Ignoré</span>'; card.classList.add('done'); return; }
-        if (b.dataset.a === 'gh') { showPanel('github'); return; }
-        b.disabled = true;
-        try {
-          const r = await launchSession(nom, minutes);
-          row.innerHTML = okTxt(`Session « ${esc(r.nom)} » lancée.`) + ' <span class="hint">Elle apparaît dans « Mes sessions » d\'ici quelques secondes.</span>';
-          card.classList.add('done');
-        } catch (err) {
-          b.disabled = false;
-          row.querySelectorAll('.cerr').forEach((x) => x.remove());
-          row.insertAdjacentHTML('beforeend', `<span class="cerr">${badTxt(esc(err.message))}</span>` + (cloud ? '' : ' <button class="btn cerr" data-a="gh" type="button">Connecter GitHub</button>'));
-        }
-      });
-      return { statut: cloud ? "proposée à l'équipe (carte avec « Lancer »), en attente de sa décision" : "proposée, mais GitHub n'est pas connecté : l'équipe doit d'abord coller son jeton GitHub (carte Connexion à GitHub)", minutes, nom: nom || null };
+    keepAiPlan(garder) {
+      if (!aiPreview) throw new Error('aucun plan de l\'IA en aperçu sur le terrain');
+      if (garder) keepAi(); else dropAi();
+      return { statut: garder ? 'plan de l\'IA gardé (Annuler dans l\'appli pour revenir)' : 'retour au plan de l\'équipe' };
+    },
+    setModel(id) {
+      if (!id) return { actuel: chatCfg.model, disponibles: chatModels.map((m) => m.id) };
+      if (!chatModels.some((m) => m.id === id)) throw new Error('modèle inconnu ; disponibles : ' + chatModels.map((m) => m.id).join(', '));
+      chatCfg.model = id; saveChat();
+      return { statut: 'modèle changé à partir du prochain message', modele: id };
+    },
+    async launchSession(nom, minutes) {
+      await needCloud();
+      const r = await launchSession(nom, minutes);
+      return { statut: 'lancée : elle apparaît dans la liste des sessions d\'ici quelques secondes ; l\'ordinateur peut être éteint', nom: r.nom, minutes: r.minutes };
+    },
+    async listSessions() {
+      await needCloud();
+      const list = await cloud.sessions();
+      renderSessions(list);
+      const best = BZ.bestSession(list);
+      return { sessions: list.slice(0, 12).map(sessBrief), meilleure: best ? String(best.id) : null };
+    },
+    async loadSession(id) {
+      if (id === 'resultat_cloud') {
+        if (!(window.CLOUD_RESULT && window.CLOUD_RESULT.plan)) throw new Error('pas de résultat cloud intégré à l\'appli');
+        loadCloudResult(window.CLOUD_RESULT);
+        return { statut: 'résultat cloud chargé : robot, match et plan remplacés, visibles sur le terrain', score: window.CLOUD_RESULT.score };
+      }
+      await needCloud();
+      if (!lastSessions.length) renderSessions(await cloud.sessions());
+      const s = id === 'meilleure' ? BZ.bestSession(lastSessions) : lastSessions.find((x) => String(x.id) === id);
+      if (!s) throw new Error('session introuvable (voir lister_sessions)');
+      if (!s.result || !s.result.plan) throw new Error('cette session n\'a pas encore de résultat (premier point d\'étape après 15 min)');
+      loadCloudResult(s.result);
+      return { statut: 'chargée : robot, match et meilleur plan de la session sont dans l\'appli (terrain et page Code)', nom: s.nom, score: s.result.score };
+    },
+    async cancelSession(id) {
+      await needCloud();
+      const s = lastSessions.find((x) => String(x.id) === id);
+      if (s && s.status === 'completed') throw new Error('cette session est déjà terminée');
+      await cloud.cancel(id);
+      setTimeout(() => refreshSessions(true), 3000);
+      return { statut: 'arrêt demandé ; le dernier point d\'étape est gardé', nom: s ? s.nom : id };
     },
     proposePlan(plan, why, r) {
       const cur = simulate(myPlan);
@@ -1437,16 +1492,25 @@
     },
   });
 
-  const TOOL_TXT = { simuler_plan: ['wrench', 'essaie une variante'], proposer_plan: ['list', 'propose un plan'], lire_reglages: ['search', 'lit les réglages'], modifier_reglages: ['sliders', 'propose des réglages'], optimiser_plan: ['play', "lance l'optimisation"], lancer_session_cloud: ['cloud', 'propose une session dans le cloud'], afficher_carte: ['list', 'affiche une carte'] };
-  async function chatSend(text) {
+  const TOOL_TXT = {
+    simuler_plan: ['wrench', 'essaie une variante'], proposer_plan: ['list', 'propose un plan'], lire_reglages: ['search', 'lit les réglages'],
+    modifier_reglages: ['sliders', 'propose des réglages'], optimiser_plan: ['play', 'lance l\'optimisation'], arreter_optimisation: ['pause', 'arrête l\'optimisation'],
+    garder_plan_ia: ['check', 'met à jour le plan'], lancer_session_cloud: ['cloud', 'lance une session dans le cloud'], lister_sessions: ['list', 'regarde les sessions'],
+    charger_session: ['download', 'charge un résultat'], arreter_session: ['x', 'arrête une session'], changer_modele: ['sliders', 'change de modèle'],
+  };
+  // hidden = message de l'appli (événement) : pas de bulle « moi »
+  async function chatSend(text, hidden) {
     text = (text || '').trim();
     if (!text) return;
-    if (assistant.busy) return;
-    if (!chatAuth()) { showPanel('key', 'Pour discuter, il me faut d\'abord une clé API Gemini. Collez-la ici :'); $('chatKey').focus(); return; }
-    chatMsg('me', esc(text));
-    $('chatInput').value = '';
+    if (assistant.busy) { if (hidden) pendingEvents.unshift(text); return; }
+    if (!hidden) {
+      $('chatInput').value = '';
+      $('chatSugg').hidden = true;
+      if (await localCommand(text)) return;
+      chatMsg('me', esc(text));
+    }
+    if (!chatAuth()) return;
     $('chatSend').textContent = 'Stop';
-    $('chatSugg').hidden = true;
     let bubble = null, buf = '', toolLine = null;
     await assistant.send(text, chatAuth(), chatCfg.model, {
       onTurnStart() { bubble = null; buf = ''; },
@@ -1458,7 +1522,7 @@
       onToolStart(name) {
         if (bubble) { bubble.classList.remove('typing'); bubble.innerHTML = mdLite(buf); bubble = null; buf = ''; }
         const [tn, tt] = TOOL_TXT[name] || ['wrench', name];
-        toolLine = chatMsg('tool', ic(tn) + esc(tt));
+        toolLine = chatMsg('tool', ic(tn) + esc(tt + '…'));
       },
       onTool(name, input, res) {
         let extra = '';
@@ -1467,9 +1531,10 @@
         if (toolLine) toolLine.innerHTML = ic(tn) + esc(tt + extra + (res.is_error ? ' (erreur : ' + res.content.replace(/^Erreur : /, '') + ')' : ''));
       },
       onDone() { if (bubble) { bubble.classList.remove('typing'); bubble.innerHTML = mdLite(buf); } },
-      onError(msg) { if (bubble) { bubble.classList.remove('typing'); } chatMsg('err', esc(msg)); if (/Code d'équipe/.test(msg)) { showPanel('key'); $('chatCode').focus(); } else if (/Clé API refusée|n'a pas accès/.test(msg)) showPanel('key'); },
+      onError(msg) { if (bubble) { bubble.classList.remove('typing'); } chatMsg('err', esc(msg)); },
     });
     $('chatSend').textContent = 'Envoyer';
+    flushEvents();
   }
   $('chatForm').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1478,9 +1543,12 @@
   });
   $('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('chatForm').requestSubmit(); } });
   $('chatSugg').addEventListener('click', (e) => { const b = e.target.closest('.chip2'); if (b) chatSend(b.textContent); });
-  $('chatNew').addEventListener('click', () => { if (assistant.busy) return; assistant.reset(); parkPanels(); chatLog.innerHTML = ''; $('chatSugg').hidden = false; chatWelcome(); });
-  $('chatKeyBtn').addEventListener('click', () => showPanel('key'));
-  $('chatActions').addEventListener('click', (e) => { const b = e.target.closest('[data-panel]'); if (b) showPanel(b.dataset.panel); });
+  function chatWelcome() {
+    if (!chatAuth()) chatMsg('ai', 'Bonjour ! Je suis l\'assistant BIOBUZZ. Pour commencer, collez ici votre clé API Gemini, seule dans le message. Vous la créez gratuitement sur aistudio.google.com/app/apikey (« Create API key ») ; elle reste dans ce navigateur.');
+    else chatMsg('ai', 'Bonjour ! Dites-moi par exemple « optimise mon plan », « lance une session de 2 h », « où en sont mes sessions ? » ou « pourquoi je ne fais pas 2 bascules ? ».');
+    if (window.CLOUD_RESULT && window.CLOUD_RESULT.plan) chatMsg('ai', `Un résultat d'entraînement dans le cloud est disponible (${window.CLOUD_RESULT.score.toFixed(1)} pts espérés). Dites « charge le résultat du cloud » pour l'utiliser.`);
+  }
+  $('chatNew').addEventListener('click', () => { if (assistant.busy) return; assistant.reset(); chatLog.innerHTML = ''; $('chatSugg').hidden = false; chatWelcome(); });
 
   chatWelcome();
 

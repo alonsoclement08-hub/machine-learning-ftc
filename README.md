@@ -86,35 +86,25 @@ préchargées → FLOWER 1 → FLOWER 2 → GARDEN → PARK.
 
 ### Page 2 : Assistant (chat IA, optimisation, sessions dans le cloud)
 
-**Chat avec Gemini** (API Google) sur votre AUTO : « pourquoi je ne fais pas 2 bascules ? »,
-« rends mon trajet plus rapide »… Gemini voit les réglages, le plan dessiné, son résultat simulé,
-l'état de l'optimisation et des sessions. Il **essaie des variantes avec le simulateur**, puis :
-- propose un **plan** : carte avec le score avant / après, « Voir sur le terrain » et « Appliquer » ;
-- propose des **réglages** de la page 1 : carte avant → après, « Appliquer » puis « Annuler » si besoin ;
-- **lance l'optimisation** (« optimise mon plan ») : carte avec l'avancement, puis « Garder ce plan » ;
-- propose une **session dans le cloud** (« lance une session de 2 h ») : carte avec « Lancer ».
+**Tout se fait en parlant au chat (Gemini, API Google)** : la page ne contient que la discussion.
+- « **optimise mon plan** » : l'optimisation tourne sur l'ordinateur (avancement affiché dans le chat) ;
+  à la fin, l'assistant **annonce le résultat** (score avant → après, bascules, fautes) et demande si
+  vous gardez le plan (« garde-le » / « reviens à mon plan »).
+- « **lance une session de 2 h** » : la session part sur le serveur GitHub (ordinateur éteint possible) ;
+  « **où en sont mes sessions ?** », « **charge la meilleure** », « **arrête la session essai** ». Quand
+  une session se termine, l'assistant l'annonce.
+- Questions et conseils : « pourquoi je ne fais pas 2 bascules ? », « rends mon trajet plus rapide »… Il
+  essaie des variantes avec le simulateur et propose un plan ou des réglages (carte « Appliquer »).
+- « utilise Gemini Pro » change de modèle ; « charge le résultat du cloud » charge le résultat intégré.
 
-Rien ne change sans votre clic (sauf l'optimisation, qui ne fait qu'afficher un aperçu).
-
-**Clé de l'équipe pour tout le monde** : installez le **relais Gemini** (gratuit, chez Cloudflare,
-mode d'emploi dans [`tools/gemini-relais/LISEZMOI.md`](tools/gemini-relais/LISEZMOI.md)) et mettez son
-adresse dans `js/config.js`. La clé reste cachée dans le relais, qui ne sert qu'au chat BIOBUZZ.
-
-Sans relais, il faut une **clé API Gemini** (gratuite pour commencer, avec un quota), créée sur
-[aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) : elle reste dans votre
-navigateur et part directement chez Google. Une fois la clé enregistrée, la liste des modèles Gemini
-de votre compte s'affiche (Flash par défaut). Le chat a besoin d'Internet ; tout le reste de l'appli
-marche hors ligne.
-
-**Tout se fait dans le chat** : la page Assistant ne contient que la discussion. Les boutons sous le
-chat (**Optimiser**, **Nouvelle session**, **Mes sessions**, **GitHub**, **Clé Gemini**) affichent la
-carte correspondante dans la discussion ; l'IA peut aussi l'afficher elle-même (« montre mes
-sessions »). Dans ces cartes :
-- **Optimiser avec l'IA** : l'IA part de votre dessin et essaie des milliers de variantes (points de
-  tir dans leurs zones, courbes, points de passage, nombre de balles, départ si non verrouillé).
-  Avec « Garder l'ordre de mes étapes », elle ne change ni l'ordre ni les étapes verrouillées. Le
-  terrain montre l'**aperçu** de l'IA : **Garder ce plan** ou **Revenir à mon plan**.
-- **Nouvelle session**, **Mes sessions**, **GitHub** : voir « Sessions dans le cloud » plus bas.
+**Clé et jeton, collés dans le chat** : collez votre **clé API Gemini** (créée gratuitement sur
+[aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)) **seule dans un message** ;
+plus tard, collez de même votre **jeton GitHub** (`github_pat_…`, voir plus bas) pour les sessions.
+L'appli les reconnaît, les garde dans ce navigateur et ne les envoie **jamais** à l'IA (le message
+affiché est masqué). « oublie ma clé » / « oublie mon jeton » les effacent. Avec un **relais Gemini**
+d'équipe ([`tools/gemini-relais/LISEZMOI.md`](tools/gemini-relais/LISEZMOI.md), adresse dans
+`js/config.js`), personne n'a besoin de clé ; s'il a un code : « code d'équipe : … ». Le chat a besoin
+d'Internet ; tout le reste de l'appli marche hors ligne.
 
 ### Page 3 : Code
 
@@ -134,7 +124,7 @@ Avec Onshape ou Fusion 360, faites clic droit puis Exporter > STEP.
 
 ## Sessions dans le cloud (ordinateur éteint)
 
-La page **Assistant** de l'appli (boutons « Nouvelle session » / « Mes sessions » sous le chat, ou en le demandant au chat) lance des entraînements sur un serveur GitHub gratuit, pendant que
+Le chat de l'appli (« lance une session de 2 h ») lance des entraînements sur un serveur GitHub gratuit, pendant que
 l'ordinateur est éteint. Il affiche aussi vos sessions (en cours, terminées) et le **meilleur
 résultat**, à charger et rejouer, ou à télécharger directement en `.java` / `.blk`.
 
@@ -143,17 +133,16 @@ https://github.com/settings/personal-access-tokens/new :
 
 1. Repository access : **Only select repositories**, puis le dépôt `machine-learning-ftc`.
 2. Permissions : **Actions = Read and write** et **Contents = Read and write**.
-3. **Generate token**, puis collez le jeton dans la carte **GitHub** du chat (page **Assistant**) et cliquez **Se connecter**.
+3. **Generate token**, puis collez le jeton **seul dans un message du chat** (page **Assistant**) : l'appli se connecte et le garde dans ce navigateur.
 
 Le jeton reste uniquement dans ce navigateur.
 
 **Ensuite, à chaque fois :**
 
 1. Réglez le robot et le match (page 1) et dessinez votre plan : la session part de votre plan.
-2. Dans la carte **Nouvelle session** du chat, donnez un nom et une durée (340 min max), puis cliquez **Lancer la session**
-   (ou demandez-le au chat).
-3. Éteignez l'ordinateur si vous voulez. Au retour, rouvrez l'appli : les sessions et le meilleur
-   résultat s'affichent tout seuls. Les sessions en cours enregistrent un point d'étape toutes les
+2. Dans le chat, dites par exemple « lance une session de 2 h appelée départ gauche » (340 min max).
+3. Éteignez l'ordinateur si vous voulez. Au retour, rouvrez l'appli et demandez « où en sont mes
+   sessions ? » ou « charge la meilleure ». Les sessions en cours enregistrent un point d'étape toutes les
    15 min.
 
 Les résultats sont aussi rangés dans le dépôt, dans `sessions/<numéro>/` : `AutoBiobuzzIA.java`,
