@@ -63,6 +63,7 @@
   <symbol id="i-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4.5M5 4.5h11l-2 4 2 4H5"/></symbol>
   <symbol id="i-curve" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18C8 18 8 6 12 6s4 12 8 12"/></symbol>
 <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L19.5 3.5M16 7l2.5 2.5M14 9l2 2"/></symbol>
 </svg>
 <main class="app">
   <!-- ===================== TERRAIN ===================== -->
@@ -139,7 +140,7 @@
 
   <!-- ===================== BARRE DE DROITE : 3 PAGES ===================== -->
   <aside class="side">
-    <div class="brandline"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z" fill="var(--accent)"/><path d="M8 10h8M7.5 13h9M9 16h6" stroke="#1d1f24" stroke-width="1.6" stroke-linecap="round"/></svg><div class="brandtxt"><b>BIOBUZZ Auto IA</b><span>Planificateur d'AUTO · FTC 2026-27</span></div><span class="vtag mono" id="appVersion">v15 · 01/11</span></div>
+    <div class="brandline"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z" fill="var(--accent)"/><path d="M8 10h8M7.5 13h9M9 16h6" stroke="#1d1f24" stroke-width="1.6" stroke-linecap="round"/></svg><div class="brandtxt"><b>BIOBUZZ Auto IA</b><span>Planificateur d'AUTO · FTC 2026-27</span></div><span class="vtag mono" id="appVersion">v16 · 01/11</span></div>
     <div class="pager-head">
       <button class="btn icon ghost" id="pagePrev" type="button" aria-label="Page précédente"><svg class="ic" aria-hidden="true"><use href="#i-chev-left"/></svg></button>
       <div class="pager-dots" role="tablist">
@@ -300,27 +301,27 @@
       </div>
       </section>
 
-      <!-- PAGE 2 : ASSISTANT IA, OPTIMISATION, SESSIONS DANS LE CLOUD -->
-      <section class="page" id="page-chat" aria-label="Assistant IA, optimisation et sessions">
+      <!-- PAGE 2 : ASSISTANT IA (tout se fait dans le chat) -->
+      <section class="page" id="page-chat" aria-label="Assistant IA">
         <div class="card chatcard" id="chatCard">
-          <div class="row between"><h2 class="h-ic"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg>Assistant IA</h2><button class="btn ghost" id="chatNew" type="button" title="Nouvelle discussion"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Nouvelle</button></div>
-          <details id="chatSetup">
-            <summary id="chatSetupSum">Accès à Gemini</summary>
-            <div id="relayRow" hidden><p class="hint">L'équipe a un <b>relais</b> : le chat utilise la clé de l'équipe, rien à coller. Si l'équipe a mis un code, collez-le ici.</p><label>Code d'équipe <input id="chatCode" type="password" placeholder="facultatif" autocomplete="off"></label></div>
-            <p class="hint">Le chat utilise l'API <b>Gemini</b> de Google : il faut une <b>clé API</b> (gratuite pour commencer, avec un quota). Créez-la sur <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com/app/apikey</a> (« Create API key »). Elle reste dans ce navigateur et part directement chez Google. Ne la partagez pas.</p>
-            <label><span id="chatKeyLbl">Votre clé API Gemini</span> <span class="keyrow"><input id="chatKey" type="password" placeholder="Collez votre clé Gemini ici" autocomplete="off" spellcheck="false"><button class="btn icon ghost" id="chatKeyShow" type="button" title="Afficher / masquer la clé" aria-label="Afficher la clé"><svg class="ic" aria-hidden="true"><use href="#i-eye"/></svg></button></span></label>
-            <label>Modèle <select id="chatModel"></select><small id="chatModelHint">La liste complète s'affiche une fois la clé enregistrée.</small></label>
-            <div class="row"><button class="btn primary" id="chatSaveKey" type="button">Enregistrer</button><button class="btn ghost" id="chatForget" type="button">Oublier la clé</button></div>
-            <div id="chatKeyStatus" class="status"></div>
-          </details>
+          <div class="chat-head">
+            <h2 class="h-ic"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg>Assistant IA</h2>
+            <button class="btn ghost chat-keybtn" id="chatKeyBtn" type="button" title="Accès à Gemini (clé API, modèle)"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg><span id="chatSetupSum">Accès à Gemini</span></button>
+            <button class="btn ghost" id="chatNew" type="button" title="Nouvelle discussion"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Nouvelle</button>
+          </div>
           <div id="chatLog" class="chatlog" aria-live="polite"></div>
+          <div class="chat-actions" id="chatActions" role="toolbar" aria-label="Actions rapides">
+            <button class="chip2" type="button" data-panel="opt"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg>Optimiser</button>
+            <button class="chip2" type="button" data-panel="launch"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>Nouvelle session</button>
+            <button class="chip2" type="button" data-panel="sessions"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg>Mes sessions</button>
+            <button class="chip2" type="button" data-panel="github"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>GitHub</button>
+            <button class="chip2" type="button" data-panel="key"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg>Clé Gemini</button>
+          </div>
           <div class="chat-sugg" id="chatSugg">
             <button class="chip2" type="button">Pourquoi je ne fais pas 2 bascules ?</button>
             <button class="chip2" type="button">Rends mon trajet plus rapide</button>
             <button class="chip2" type="button">Que dois-je mesurer sur mon robot ?</button>
             <button class="chip2" type="button">Propose un meilleur plan</button>
-            <button class="chip2" type="button">Optimise mon plan</button>
-            <button class="chip2" type="button">Lance une session cloud de 2 h</button>
           </div>
           <form id="chatForm" class="chatform">
             <textarea id="chatInput" rows="2" placeholder="Posez une question sur votre AUTO…"></textarea>
@@ -328,10 +329,21 @@
           </form>
         </div>
 
-        <h2 class="pagetitle"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg>Optimisation</h2>
-        <div class="card">
-          <h2>Optimiser avec l'IA</h2>
-          <p class="hint">Ici, ou en demandant au chat « optimise mon plan ». L'IA part de <b>votre plan</b> et essaie des milliers de variantes : points de tir, courbes, nombre de balles, départ.</p>
+        <!-- Cartes affichées dans le chat à la demande (boutons ci-dessus ou par l'IA) -->
+        <div id="chatPanels" hidden>
+        <div class="panel" id="panel-key">
+          <div class="panel-head"><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg><b>Accès à Gemini</b></div>
+          <div id="relayRow" hidden><p class="hint">L'équipe a un <b>relais</b> : le chat utilise la clé de l'équipe, rien à coller. Si l'équipe a mis un code, collez-le ici.</p><label>Code d'équipe <input id="chatCode" type="password" placeholder="facultatif" autocomplete="off"></label></div>
+            <p class="hint">Le chat utilise l'API <b>Gemini</b> de Google : il faut une <b>clé API</b> (gratuite pour commencer, avec un quota). Créez-la sur <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com/app/apikey</a> (« Create API key »). Elle reste dans ce navigateur et part directement chez Google. Ne la partagez pas.</p>
+            <label><span id="chatKeyLbl">Votre clé API Gemini</span> <span class="keyrow"><input id="chatKey" type="password" placeholder="Collez votre clé Gemini ici" autocomplete="off" spellcheck="false"><button class="btn icon ghost" id="chatKeyShow" type="button" title="Afficher / masquer la clé" aria-label="Afficher la clé"><svg class="ic" aria-hidden="true"><use href="#i-eye"/></svg></button></span></label>
+            <label>Modèle <select id="chatModel"></select><small id="chatModelHint">La liste complète s'affiche une fois la clé enregistrée.</small></label>
+            <div class="row"><button class="btn primary" id="chatSaveKey" type="button">Enregistrer</button><button class="btn ghost" id="chatForget" type="button">Oublier la clé</button></div>
+            <div id="chatKeyStatus" class="status"></div>
+          
+        </div>
+        <div class="panel" id="panel-opt">
+          <div class="panel-head"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg><b>Optimiser avec l'IA</b></div>
+          <p class="hint">L'IA part de <b>votre plan</b> et essaie des milliers de variantes : points de tir, courbes, nombre de balles, départ.</p>
           <label class="check"><input type="checkbox" id="keepOrder" checked> Garder l'ordre de mes étapes (et les étapes verrouillées)</label>
           <div class="row">
             <button class="btn primary" id="trainBtn" type="button"><svg class="ic" aria-hidden="true"><use href="#i-play"/></svg>Optimiser mon plan</button>
@@ -350,15 +362,9 @@
           </div>
           <div id="cloudStatus" class="status"></div>
         </div>
-
-        <h2 class="pagetitle"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>Sessions dans le cloud</h2>
-      <div class="card" id="bestCard" hidden>
-        <h2 class="h-ic"><svg class="ic" aria-hidden="true"><use href="#i-trophy"/></svg>Meilleur résultat</h2>
-        <div id="bestSession"></div>
-      </div>
-      <div class="card">
-        <h2>Nouvelle session dans le cloud</h2>
-        <p class="hint">L'IA s'entraîne sur un serveur GitHub avec le robot et le match de la page 1 (et votre plan comme point de départ). Vous pouvez fermer l'appli et éteindre l'ordinateur.</p>
+        <div class="panel" id="panel-launch">
+          <div class="panel-head"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg><b>Nouvelle session dans le cloud</b></div>
+          <p class="hint">L'IA s'entraîne sur un serveur GitHub avec le robot et le match de la page Robot (et votre plan comme point de départ). Vous pouvez fermer l'appli et éteindre l'ordinateur.</p>
         <div class="grid2">
           <label>Nom de la session <input id="sessName" type="text" placeholder="ex. robot v1 départ gauche"></label>
           <label>Durée (minutes, 340 max) <input id="sessMinutes" type="number" value="300" min="5" max="340" step="5"></label>
@@ -368,15 +374,15 @@
           <button class="btn" id="dlCloudCfg" type="button">ou télécharger config.json</button>
         </div>
         <div id="sessLaunchStatus" class="status"></div>
-      </div>
-      <div class="card">
-        <div class="row between"><h2>Mes sessions</h2><button class="btn" id="sessRefresh" type="button"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg>Actualiser</button></div>
-        <div id="sessList" class="sess-list"><p class="hint">Connectez GitHub (ci-dessous) pour voir vos sessions.</p></div>
+        </div>
+        <div class="panel" id="panel-sessions">
+          <div class="panel-head"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg><b>Mes sessions dans le cloud</b><button class="btn ghost" id="sessRefresh" type="button"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg>Actualiser</button></div>
+          <div id="bestCard" class="best-block" hidden><div class="h-ic best-title"><svg class="ic" aria-hidden="true"><use href="#i-trophy"/></svg><b>Meilleur résultat</b></div><div id="bestSession"></div></div><div id="sessList" class="sess-list"><p class="hint">Connectez GitHub (bouton « GitHub » sous le chat) pour voir vos sessions.</p></div>
         <p class="hint" id="sessUpdated"></p>
-      </div>
-      <div class="card">
-        <h2>Connexion à GitHub</h2>
-        <p class="hint" id="ghState">Non connecté.</p>
+        </div>
+        <div class="panel" id="panel-github">
+          <div class="panel-head"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg><b>Connexion à GitHub</b></div>
+          <p class="hint" id="ghState">Non connecté.</p>
         <div class="grid2">
           <label>Dépôt (propriétaire/nom) <input id="ghRepo" type="text" value="alonsoclement08-hub/machine-learning-ftc"></label>
           <label>Branche <input id="ghBranch" type="text" value="claude/zealous-euler-ceeast"></label>
@@ -397,7 +403,8 @@
           </ol>
           <p class="hint">Le jeton reste uniquement dans ce navigateur, sur cet ordinateur. Ne le partagez pas.</p>
         </details>
-      </div>
+        </div>
+        </div>
       </section>
 
       <!-- PAGE 3 : CODE DU ROBOT -->

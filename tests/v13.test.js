@@ -17,6 +17,7 @@ function fakeApp() {
     settings: () => ({ ok: 1 }), context: () => ({}),
     proposePlan: (p, why, r) => log.plans.push({ p, why, r }), proposeSettings: (c, why) => log.settings.push({ c, why }),
     optimize: (o) => { log.opt = o; return { statut: 'lancée' }; }, proposeSession: (nom, minutes, why) => { log.sess = { nom, minutes, why }; return { statut: 'proposée' }; },
+    showPanel: (c) => { if (c !== 'sessions') throw new Error('carte inconnue'); log.panel = c; return { statut: 'affichée' }; },
   };
   return { app, log, start, world };
 }
@@ -85,4 +86,13 @@ test('réglages : une valeur envoyée en texte JSON est acceptée', () => {
   const r = as.runTool('modifier_reglages', { changements: [{ chemin: 'robot.lanceur.precision', valeur: '0.9' }, { chemin: 'robot.chassis', valeur: 'tank' }], explication: 'x' });
   assert.ok(!r.is_error, r.content);
   assert.strictEqual(log.settings[0].c[0].valeur, 0.9);
+});
+
+test('outil : afficher une carte dans le chat', () => {
+  const { app, log } = fakeApp();
+  const as = new BZ.Assistant(app);
+  assert.ok(!as.runTool('afficher_carte', { carte: 'sessions' }).is_error);
+  assert.strictEqual(log.panel, 'sessions');
+  assert.ok(as.runTool('afficher_carte', { carte: 'lune' }).is_error);
+  assert.deepStrictEqual(BZ.CHAT_TOOLS.map((t) => t.name).sort(), ['afficher_carte', 'lancer_session_cloud', 'lire_reglages', 'modifier_reglages', 'optimiser_plan', 'proposer_plan', 'simuler_plan']);
 });

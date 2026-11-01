@@ -106,12 +106,15 @@ navigateur et part directement chez Google. Une fois la clé enregistrée, la li
 de votre compte s'affiche (Flash par défaut). Le chat a besoin d'Internet ; tout le reste de l'appli
 marche hors ligne.
 
-Sous le chat, sur la même page :
+**Tout se fait dans le chat** : la page Assistant ne contient que la discussion. Les boutons sous le
+chat (**Optimiser**, **Nouvelle session**, **Mes sessions**, **GitHub**, **Clé Gemini**) affichent la
+carte correspondante dans la discussion ; l'IA peut aussi l'afficher elle-même (« montre mes
+sessions »). Dans ces cartes :
 - **Optimiser avec l'IA** : l'IA part de votre dessin et essaie des milliers de variantes (points de
   tir dans leurs zones, courbes, points de passage, nombre de balles, départ si non verrouillé).
   Avec « Garder l'ordre de mes étapes », elle ne change ni l'ordre ni les étapes verrouillées. Le
   terrain montre l'**aperçu** de l'IA : **Garder ce plan** ou **Revenir à mon plan**.
-- **Sessions dans le cloud** : voir plus bas.
+- **Nouvelle session**, **Mes sessions**, **GitHub** : voir « Sessions dans le cloud » plus bas.
 
 ### Page 3 : Code
 
@@ -131,7 +134,7 @@ Avec Onshape ou Fusion 360, faites clic droit puis Exporter > STEP.
 
 ## Sessions dans le cloud (ordinateur éteint)
 
-La page **Assistant** de l'appli (section « Sessions dans le cloud », ou en le demandant au chat) lance des entraînements sur un serveur GitHub gratuit, pendant que
+La page **Assistant** de l'appli (boutons « Nouvelle session » / « Mes sessions » sous le chat, ou en le demandant au chat) lance des entraînements sur un serveur GitHub gratuit, pendant que
 l'ordinateur est éteint. Il affiche aussi vos sessions (en cours, terminées) et le **meilleur
 résultat**, à charger et rejouer, ou à télécharger directement en `.java` / `.blk`.
 
@@ -140,14 +143,14 @@ https://github.com/settings/personal-access-tokens/new :
 
 1. Repository access : **Only select repositories**, puis le dépôt `machine-learning-ftc`.
 2. Permissions : **Actions = Read and write** et **Contents = Read and write**.
-3. **Generate token**, puis collez le jeton dans la page **Assistant** (carte « Connexion à GitHub ») et cliquez **Se connecter**.
+3. **Generate token**, puis collez le jeton dans la carte **GitHub** du chat (page **Assistant**) et cliquez **Se connecter**.
 
 Le jeton reste uniquement dans ce navigateur.
 
 **Ensuite, à chaque fois :**
 
 1. Réglez le robot et le match (page 1) et dessinez votre plan : la session part de votre plan.
-2. Dans **Sessions dans le cloud**, donnez un nom et une durée (340 min max), puis cliquez **Lancer la session**
+2. Dans la carte **Nouvelle session** du chat, donnez un nom et une durée (340 min max), puis cliquez **Lancer la session**
    (ou demandez-le au chat).
 3. Éteignez l'ordinateur si vous voulez. Au retour, rouvrez l'appli : les sessions et le meilleur
    résultat s'affichent tout seuls. Les sessions en cours enregistrent un point d'étape toutes les

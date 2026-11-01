@@ -2,7 +2,7 @@
 // La clé API Gemini reste ici, dans un secret du Worker (GEMINI_KEY) : elle n'est jamais envoyée au
 // navigateur. Le relais ne transmet que les requêtes du chat BIOBUZZ, avec des limites :
 //   - seulement les modèles autorisés (MODELES), seulement la génération de texte en flux ;
-//   - la demande doit venir du chat BIOBUZZ (consigne BIOBUZZ + les 6 outils de l'appli) ;
+//   - la demande doit venir du chat BIOBUZZ (consigne BIOBUZZ + les 7 outils de l'appli) ;
 //   - taille des demandes et longueur des réponses plafonnées ;
 //   - nombre de demandes limité par appareil (adresse IP) ;
 //   - origines autorisées (ORIGINES) et code d'équipe facultatif (CODE_EQUIPE).
@@ -16,7 +16,7 @@
 const DEFAUT_MODELES = 'gemini-2.5-flash,gemini-2.5-flash-lite';
 // « null » = appli ouverte en double-cliquant sur index.html (fichier local)
 const DEFAUT_ORIGINES = 'https://alonsoclement08-hub.github.io,null';
-const OUTILS = ['simuler_plan', 'proposer_plan', 'lire_reglages', 'modifier_reglages', 'optimiser_plan', 'lancer_session_cloud'];
+const OUTILS = ['simuler_plan', 'proposer_plan', 'lire_reglages', 'modifier_reglages', 'optimiser_plan', 'afficher_carte', 'lancer_session_cloud'];
 const MAX_OCTETS = 400000;
 const MAX_TOKENS = 16000;
 const API = 'https://generativelanguage.googleapis.com/v1beta';

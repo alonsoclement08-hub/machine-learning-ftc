@@ -1119,7 +1119,7 @@
     const best = BZ.bestSession(list);
     const running = list.filter((s) => s.status !== 'completed').length;
     $('optDotLabel').textContent = running ? `Assistant (${running} en cours)` : 'Assistant';
-    if (!list.length) { $('sessList').innerHTML = '<p class="hint">Aucune session pour l\'instant : lancez-en une ci-dessus.</p>'; $('bestCard').hidden = true; return; }
+    if (!list.length) { $('sessList').innerHTML = '<p class="hint">Aucune session pour l\'instant : bouton « Nouvelle session » ou demandez-le au chat.</p>'; $('bestCard').hidden = true; return; }
     const card = (s) => {
       const r = s.result;
       let badge;
@@ -1196,7 +1196,7 @@
 
   // Lance une session dans le cloud (bouton de la page, ou carte proposée par le chat). Lève une erreur lisible.
   async function launchSession(nom, minutes) {
-    if (!cloud && !(await ghConnect(false))) throw new Error('Connectez d\'abord GitHub (carte « Connexion à GitHub », plus bas sur cette page).');
+    if (!cloud && !(await ghConnect(false))) throw new Error('Connectez d\'abord GitHub (bouton « GitHub » sous le chat).');
     minutes = Math.max(5, Math.min(340, minutes || 300));
     nom = (nom || '').trim() || `${robot.nom} · ${new Date().toLocaleDateString('fr-FR')}`;
     await cloud.launch(nom, minutes, { version: 1, nom, minutes, robot, game, plan: myPlan, keepOrder: $('keepOrder').checked });
@@ -1251,8 +1251,8 @@
       }
     } catch (err) {
       $('chatModelHint').textContent = BZ.chatErrorText(err);
-      if (fromSave) { $('chatKeyStatus').innerHTML = badTxt(esc(BZ.chatErrorText(err))); $('chatSetup').open = true; }
-      if (err.reason === 'CODE_EQUIPE') { $('chatSetup').open = true; }
+      if (fromSave) $('chatKeyStatus').innerHTML = badTxt(esc(BZ.chatErrorText(err)));
+      if (err.reason === 'CODE_EQUIPE') showPanel('key');
     }
   }
   fillModels();
@@ -1262,10 +1262,9 @@
     $('chatSetupSum').textContent = chatCfg.key ? `Votre clé Gemini · ${nom}` : relay ? `Clé de l'équipe (relais) · ${nom}` : 'Clé API Gemini (à configurer)';
   };
   chatSetupLabel();
-  if (!chatAuth()) $('chatSetup').open = true;
   const saveChat = () => { try { localStorage.setItem(CHAT_KEY, JSON.stringify(chatCfg)); } catch (e) { /* rien */ } chatSetupLabel(); };
   loadModels();
-  $('chatSaveKey').addEventListener('click', () => { chatCfg.key = $('chatKey').value.trim(); chatCfg.code = $('chatCode').value.trim(); chatCfg.model = $('chatModel').value; saveChat(); loadModels(true).then(() => { if (/vérifiée|prêt/.test($('chatKeyStatus').textContent)) setTimeout(() => { $('chatSetup').open = false; }, 1200); }); });
+  $('chatSaveKey').addEventListener('click', () => { chatCfg.key = $('chatKey').value.trim(); chatCfg.code = $('chatCode').value.trim(); chatCfg.model = $('chatModel').value; saveChat(); loadModels(true).then(() => { if (/vérifiée|prêt/.test($('chatKeyStatus').textContent)) chatMsg('ai', 'C\'est bon, je suis prêt. Posez-moi une question sur votre AUTO, ou utilisez les boutons sous le chat.'); }); });
   $('chatKey').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('chatSaveKey').click(); } });
   $('chatKeyShow').addEventListener('click', () => { const k = $('chatKey'); k.type = k.type === 'password' ? 'text' : 'password'; });
   $('chatModel').addEventListener('change', () => { chatCfg.model = $('chatModel').value; saveChat(); });
@@ -1304,6 +1303,35 @@
     return d;
   }
 
+  // Cartes de réglages (clé, optimisation, sessions, GitHub) : elles s'affichent dans le chat, au bas
+  // de la discussion, quand on les demande (boutons sous le chat, ou l'IA). Une seule de chaque.
+  const PANEL_INTRO = {
+    key: 'Accès à Gemini : collez votre clé API et choisissez le modèle.',
+    opt: 'Voici l\'optimisation : l\'IA part de votre plan et essaie des milliers de variantes.',
+    launch: 'Nouvelle session dans le cloud : elle continue même ordinateur éteint.',
+    sessions: 'Vos sessions dans le cloud :',
+    github: 'Connexion à GitHub (une seule fois), pour lancer et suivre les sessions dans le cloud :',
+  };
+  function showPanel(name, intro, stay) {
+    const el = $('panel-' + name);
+    if (!el) return null;
+    if (pageIdx !== 1 && !stay) goPage(1);
+    if (intro !== false) chatMsg('ai', esc(intro || PANEL_INTRO[name] || ''));
+    chatLog.appendChild(el);
+    chatScroll();
+    if (name === 'sessions' && cloud) refreshSessions(true);
+    if (name === 'opt') drawChart();
+    return el;
+  }
+  // avant d'effacer la discussion, les cartes retournent dans leur réserve
+  const parkPanels = () => chatLog.querySelectorAll('.panel').forEach((el) => $('chatPanels').appendChild(el));
+  function chatWelcome() {
+    // le résultat cloud d'abord, la demande de clé en dernier (c'est elle qu'on voit en bas du chat)
+    if (window.CLOUD_RESULT && window.CLOUD_RESULT.plan) showPanel('opt', 'Un résultat d\'entraînement dans le cloud est disponible : vous pouvez le charger ici.', true);
+    if (!chatAuth()) showPanel('key', 'Bonjour ! Je suis l\'assistant BIOBUZZ. Pour discuter, collez d\'abord votre clé API Gemini :', true);
+    else chatMsg('ai', 'Bonjour ! Je peux expliquer votre plan, trouver ce qui coince, l\'optimiser et lancer des sessions dans le cloud. Écrivez-moi, ou utilisez les boutons sous le chat.');
+  }
+
   const assistant = new BZ.Assistant({
     world: worldNow,
     robot: () => robot,
@@ -1331,7 +1359,7 @@
       if (opt && opt.generation >= generations) opt = null; // déjà fini : on repart de zéro
       if (!training) startTraining();
       const card = chatCard(`<h4>${ic('sliders')}Optimisation lancée</h4><div class="hint" data-prog>Génération 0 / ${generations}</div>` +
-        '<div class="row"><button class="btn" data-a="see" type="button">Voir la carte Optimiser</button><button class="btn ghost" data-a="stop" type="button">Arrêter</button></div>');
+        '<div class="row"><button class="btn" data-a="see" type="button">Détails</button><button class="btn ghost" data-a="stop" type="button">Arrêter</button></div>');
       const prog = card.querySelector('[data-prog]');
       const tick = setInterval(() => {
         const g = opt ? opt.generation : 0, b = opt && opt.best ? opt.best.result : null;
@@ -1344,22 +1372,28 @@
       card.addEventListener('click', (e) => {
         const b = e.target.closest('[data-a]');
         if (!b) return;
-        if (b.dataset.a === 'see') $('trainBtn').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (b.dataset.a === 'see') showPanel('opt');
         else if (b.dataset.a === 'stop') stopTraining();
         else if (b.dataset.a === 'keep' && aiPreview) { keepAi(); card.querySelector('.row').innerHTML = okTxt('Plan gardé (Annuler pour revenir)'); card.classList.add('done'); }
       });
       return { statut: "lancée sur cet ordinateur ; l'aperçu du meilleur plan s'affiche sur le terrain et l'équipe choisit de le garder", generations, garder_ordre: keepOrder };
     },
+    showPanel(name) {
+      const map = { cle: 'key', optimisation: 'opt', nouvelle_session: 'launch', sessions: 'sessions', github: 'github' };
+      if (!map[name]) throw new Error('panneau : ' + Object.keys(map).join(', '));
+      showPanel(map[name], false);
+      return { statut: 'carte affichée dans le chat' };
+    },
     proposeSession(nom, minutes, why) {
       const card = chatCard(`<h4>${ic('cloud')}Session dans le cloud : ${minutes} min</h4>` +
-        `<div class="hint">${nom ? '« ' + esc(nom) + ' » · ' : ''}robot, match et plan actuels${cloud ? '' : ' · GitHub non connecté : connectez-le d\'abord plus bas sur cette page'}</div>` +
+        `<div class="hint">${nom ? '« ' + esc(nom) + ' » · ' : ''}robot, match et plan actuels${cloud ? '' : ' · GitHub non connecté : connectez-le d\'abord (bouton « GitHub »)'}</div>` +
         `<div>${mdLite(why)}</div><div class="row"><button class="btn primary" data-a="go" type="button">${ic('cloud')}Lancer</button><button class="btn ghost" data-a="skip" type="button">Ignorer</button></div>`);
       card.addEventListener('click', async (e) => {
         const b = e.target.closest('[data-a]');
         if (!b) return;
         const row = card.querySelector('.row');
         if (b.dataset.a === 'skip') { row.innerHTML = '<span class="hint">Ignoré</span>'; card.classList.add('done'); return; }
-        if (b.dataset.a === 'gh') { $('ghToken').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+        if (b.dataset.a === 'gh') { showPanel('github'); return; }
         b.disabled = true;
         try {
           const r = await launchSession(nom, minutes);
@@ -1368,7 +1402,7 @@
         } catch (err) {
           b.disabled = false;
           row.querySelectorAll('.cerr').forEach((x) => x.remove());
-          row.insertAdjacentHTML('beforeend', `<span class="cerr">${badTxt(esc(err.message))}</span>` + (cloud ? '' : ' <button class="btn cerr" data-a="gh" type="button">Aller à GitHub</button>'));
+          row.insertAdjacentHTML('beforeend', `<span class="cerr">${badTxt(esc(err.message))}</span>` + (cloud ? '' : ' <button class="btn cerr" data-a="gh" type="button">Connecter GitHub</button>'));
         }
       });
       return { statut: cloud ? "proposée à l'équipe (carte avec « Lancer »), en attente de sa décision" : "proposée, mais GitHub n'est pas connecté : l'équipe doit d'abord coller son jeton GitHub (carte Connexion à GitHub)", minutes, nom: nom || null };
@@ -1403,12 +1437,12 @@
     },
   });
 
-  const TOOL_TXT = { simuler_plan: ['wrench', 'essaie une variante'], proposer_plan: ['list', 'propose un plan'], lire_reglages: ['search', 'lit les réglages'], modifier_reglages: ['sliders', 'propose des réglages'], optimiser_plan: ['play', "lance l'optimisation"], lancer_session_cloud: ['cloud', 'propose une session dans le cloud'] };
+  const TOOL_TXT = { simuler_plan: ['wrench', 'essaie une variante'], proposer_plan: ['list', 'propose un plan'], lire_reglages: ['search', 'lit les réglages'], modifier_reglages: ['sliders', 'propose des réglages'], optimiser_plan: ['play', "lance l'optimisation"], lancer_session_cloud: ['cloud', 'propose une session dans le cloud'], afficher_carte: ['list', 'affiche une carte'] };
   async function chatSend(text) {
     text = (text || '').trim();
     if (!text) return;
     if (assistant.busy) return;
-    if (!chatAuth()) { $('chatSetup').open = true; $('chatKey').focus(); chatMsg('err', 'Collez d\'abord votre clé API Gemini ci-dessus.'); return; }
+    if (!chatAuth()) { showPanel('key', 'Pour discuter, il me faut d\'abord une clé API Gemini. Collez-la ici :'); $('chatKey').focus(); return; }
     chatMsg('me', esc(text));
     $('chatInput').value = '';
     $('chatSend').textContent = 'Stop';
@@ -1433,7 +1467,7 @@
         if (toolLine) toolLine.innerHTML = ic(tn) + esc(tt + extra + (res.is_error ? ' (erreur : ' + res.content.replace(/^Erreur : /, '') + ')' : ''));
       },
       onDone() { if (bubble) { bubble.classList.remove('typing'); bubble.innerHTML = mdLite(buf); } },
-      onError(msg) { if (bubble) { bubble.classList.remove('typing'); } chatMsg('err', esc(msg)); if (/Code d'équipe/.test(msg)) { $('chatSetup').open = true; $('chatCode').focus(); } },
+      onError(msg) { if (bubble) { bubble.classList.remove('typing'); } chatMsg('err', esc(msg)); if (/Code d'équipe/.test(msg)) { showPanel('key'); $('chatCode').focus(); } else if (/Clé API refusée|n'a pas accès/.test(msg)) showPanel('key'); },
     });
     $('chatSend').textContent = 'Envoyer';
   }
@@ -1444,7 +1478,11 @@
   });
   $('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('chatForm').requestSubmit(); } });
   $('chatSugg').addEventListener('click', (e) => { const b = e.target.closest('.chip2'); if (b) chatSend(b.textContent); });
-  $('chatNew').addEventListener('click', () => { if (assistant.busy) return; assistant.reset(); chatLog.innerHTML = ''; $('chatSugg').hidden = false; });
+  $('chatNew').addEventListener('click', () => { if (assistant.busy) return; assistant.reset(); parkPanels(); chatLog.innerHTML = ''; $('chatSugg').hidden = false; chatWelcome(); });
+  $('chatKeyBtn').addEventListener('click', () => showPanel('key'));
+  $('chatActions').addEventListener('click', (e) => { const b = e.target.closest('[data-panel]'); if (b) showPanel(b.dataset.panel); });
+
+  chatWelcome();
 
   // ---------------- Démarrage ----------------
   const ua = navigator.userAgent || '';

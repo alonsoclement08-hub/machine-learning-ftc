@@ -167,6 +167,11 @@
       },
     },
     {
+      name: 'afficher_carte',
+      description: "Affiche dans le chat une carte de réglages de l'appli, pour que l'équipe s'en serve : cle (clé API Gemini et modèle), optimisation (lancer / suivre / recommencer l'optimisation, charger un résultat), nouvelle_session (lancer une session dans le cloud), sessions (liste des sessions et meilleur résultat), github (connexion GitHub). Tout se fait dans le chat : utilise-le quand l'équipe veut voir ou régler une de ces choses.",
+      parameters: { type: 'object', properties: { carte: { type: 'string', enum: ['cle', 'optimisation', 'nouvelle_session', 'sessions', 'github'] } }, required: ['carte'] },
+    },
+    {
       name: 'lancer_session_cloud',
       description: "Propose de lancer un entraînement long sur un serveur GitHub (la session continue même ordinateur éteint, 340 min au plus) avec le robot, le match et le plan actuels. L'appli affiche une carte avec le bouton « Lancer » : l'équipe décide. Il faut que GitHub soit connecté (sinon la carte l'explique).",
       parameters: {
@@ -218,7 +223,7 @@
     return [
       "Tu es l'assistant d'une équipe FIRST Tech Challenge (lycéens) qui prépare l'AUTO de 30 s du jeu BIOBUZZ 2026-2027 dans l'appli « BIOBUZZ Auto IA ». Réponds en français simple et concret, sans jargon, en peu de mots.",
       "Ce que tu peux faire : expliquer le plan et son score, trouver pourquoi il perd du temps ou rate des bascules, simuler des variantes avec simuler_plan, puis proposer un plan (proposer_plan) ou des réglages (modifier_reglages). L'équipe décide : tes propositions s'affichent avec un bouton « Appliquer ». N'annonce jamais un score que le simulateur n'a pas donné. Teste toujours un plan avec simuler_plan avant de le proposer. Ne change un réglage du robot que s'il vient d'une mesure de l'équipe ou d'une demande claire.",
-      "Optimisation : optimiser_plan lance l'algorithme génétique de l'appli sur cet ordinateur (il tourne en arrière-plan ; l'équipe voit l'aperçu sur le terrain et décide de le garder). lancer_session_cloud propose une longue session sur un serveur GitHub (jusqu'à 340 min, ordinateur éteint possible) : l'équipe confirme avec « Lancer ». L'état de l'optimisation et des sessions est dans la situation envoyée avec chaque message.",
+      "Tout se fait dans ce chat (il n'y a pas d'autre écran pour l'optimisation ou les sessions) : afficher_carte montre la carte voulue (clé, optimisation, nouvelle session, sessions, GitHub). Optimisation : optimiser_plan lance l'algorithme génétique de l'appli sur cet ordinateur (il tourne en arrière-plan ; l'équipe voit l'aperçu sur le terrain et décide de le garder). lancer_session_cloud propose une longue session sur un serveur GitHub (jusqu'à 340 min, ordinateur éteint possible) : l'équipe confirme avec « Lancer ». L'état de l'optimisation et des sessions est dans la situation envoyée avec chaque message.",
       "Repère (celui du simulateur, alliance rouge ; le même programme marche en bleu) : pouces, origine au centre du terrain, x vers la droite vu du public, y en s'éloignant du public, cap en degrés dans le sens trigonométrique (0° = vers +x, le centre du terrain). Notre côté : x entre -72 et 0 (passer x > 0 est une faute G402). Murs à ±72.",
       `HIVE au centre (x de -22 à 0, y de -19 à 19 : on ne la touche pas, on ne passe pas dessous). Au départ la CELL du haut s'ouvre vers les y négatifs : on tire depuis y < -17, cible (${r1(c[0].x)}, ${r1(c[0].y)}). Après une bascule, c'est l'autre CELL qui est en haut, ouverte vers les y positifs : on tire depuis y > 17, cible (${r1(c[1].x)}, ${r1(c[1].y)}). Tirer de derrière l'ouverture ne marque pas. La précision est meilleure bien en face de l'ouverture et à la distance idéale du lanceur.`,
       `Balles : 4 POLLEN préchargés dans le robot (capacité 4). ${F}. GARDEN (src "jardin") : 4 POLLEN le long du mur y = -71, près de x = -66. LOADING ZONE : x de ${r1(z.x0)} à ${r1(z.x1)}, y de ${r1(z.y0)} à ${r1(z.y1)} (PARK = finir en partie dedans ; après chaque bascule le joueur humain y pose 1 NECTAR, src "nectar", si l'option est cochée).`,
@@ -258,6 +263,7 @@
         const st = app.optimize({ generations: gens, keepOrder: input.garder_ordre !== false });
         return { content: JSON.stringify(st) };
       }
+      if (name === 'afficher_carte') return { content: JSON.stringify(app.showPanel(input.carte)) };
       if (name === 'lancer_session_cloud') {
         const minutes = Math.round(Number(input.minutes));
         if (!isFinite(minutes) || minutes < 5 || minutes > 340) throw new Error('minutes : entre 5 et 340');
