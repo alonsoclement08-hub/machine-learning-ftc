@@ -1222,6 +1222,9 @@
   const CHAT_KEY = 'biobuzz-gemini-v1';
   let chatCfg = { key: '', model: BZ.CHAT_MODELS[0].id };
   try { chatCfg = Object.assign(chatCfg, JSON.parse(localStorage.getItem(CHAT_KEY) || '{}')); } catch (e) { /* rien */ }
+  // clé écrite dans le fichier local cle-gemini.js (ignoré par git), si l'équipe l'a créé
+  const fileKey = typeof window.BIOBUZZ_CLE_GEMINI === 'string' && !/COLLEZ/.test(window.BIOBUZZ_CLE_GEMINI) ? window.BIOBUZZ_CLE_GEMINI.trim() : '';
+  if (!chatCfg.key && fileKey) chatCfg.key = fileKey;
   let chatModels = BZ.CHAT_MODELS.slice();
   function fillModels() {
     if (!chatModels.some((m) => m.id === chatCfg.model)) chatModels.unshift({ id: chatCfg.model, nom: chatCfg.model });

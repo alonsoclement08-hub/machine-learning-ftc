@@ -3,3 +3,4 @@ node_modules/
 *.stp
 .DS_Store
 __MACOSX/
+cle-gemini.js
