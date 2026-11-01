@@ -420,7 +420,7 @@
     if (err && err.name === 'AbortError') return 'Arrêté.';
     if (err && err.status) {
       const m = err.message || '';
-      if (err.status === 400 && /API key|API_KEY/i.test(m + err.detail)) return 'Clé API refusée : vérifiez-la (elle commence par AIza).';
+      if (err.status === 400 && /API key|API_KEY/i.test(m + err.detail)) return 'Clé API refusée : vérifiez-la (copiez-la en entier depuis aistudio.google.com).';
       if (err.status === 401 || err.status === 403) return "Cette clé n'a pas accès à l'API Gemini ou à ce modèle (vérifiez-la sur aistudio.google.com).";
       if (err.status === 404) return 'Modèle introuvable : choisissez-en un autre dans la liste.';
       if (err.status === 429) return 'Trop de demandes ou quota gratuit épuisé : attendez un peu ou vérifiez votre compte Google AI Studio.';
