@@ -94,8 +94,13 @@ l'état de l'optimisation et des sessions. Il **essaie des variantes avec le sim
 - **lance l'optimisation** (« optimise mon plan ») : carte avec l'avancement, puis « Garder ce plan » ;
 - propose une **session dans le cloud** (« lance une session de 2 h ») : carte avec « Lancer ».
 
-Rien ne change sans votre clic (sauf l'optimisation, qui ne fait qu'afficher un aperçu). Il faut une
-**clé API Gemini** (gratuite pour commencer, avec un quota), créée sur
+Rien ne change sans votre clic (sauf l'optimisation, qui ne fait qu'afficher un aperçu).
+
+**Clé de l'équipe pour tout le monde** : installez le **relais Gemini** (gratuit, chez Cloudflare,
+mode d'emploi dans [`tools/gemini-relais/LISEZMOI.md`](tools/gemini-relais/LISEZMOI.md)) et mettez son
+adresse dans `js/config.js`. La clé reste cachée dans le relais, qui ne sert qu'au chat BIOBUZZ.
+
+Sans relais, il faut une **clé API Gemini** (gratuite pour commencer, avec un quota), créée sur
 [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) : elle reste dans votre
 navigateur et part directement chez Google. Une fois la clé enregistrée, la liste des modèles Gemini
 de votre compte s'affiche (Flash par défaut). Le chat a besoin d'Internet ; tout le reste de l'appli

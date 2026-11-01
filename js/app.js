@@ -1225,6 +1225,11 @@
   // clé écrite dans le fichier local cle-gemini.js (ignoré par git), si l'équipe l'a créé
   const fileKey = typeof window.BIOBUZZ_CLE_GEMINI === 'string' && !/COLLEZ/.test(window.BIOBUZZ_CLE_GEMINI) ? window.BIOBUZZ_CLE_GEMINI.trim() : '';
   if (!chatCfg.key && fileKey) chatCfg.key = fileKey;
+  // relais de l'équipe (js/config.js) : utilisé quand personne n'a mis sa propre clé
+  const relay = typeof window.BIOBUZZ_RELAIS_GEMINI === 'string' ? window.BIOBUZZ_RELAIS_GEMINI.trim() : '';
+  const chatAuth = () => (chatCfg.key ? { key: chatCfg.key } : relay ? { relay, code: chatCfg.code || '' } : null);
+  if (relay) $('relayRow').hidden = false;
+  $('chatCode').value = chatCfg.code || '';
   let chatModels = BZ.CHAT_MODELS.slice();
   function fillModels() {
     if (!chatModels.some((m) => m.id === chatCfg.model)) chatModels.unshift({ id: chatCfg.model, nom: chatCfg.model });
@@ -1233,25 +1238,31 @@
   }
   // avec une clé : la vraie liste des modèles Gemini de ce compte
   async function loadModels() {
-    if (!chatCfg.key) return;
+    if (!chatAuth()) return;
     try {
-      const list = await BZ.geminiModels(chatCfg.key);
+      const list = await BZ.geminiModels(chatAuth());
       if (list.length) {
         chatModels = list;
         if (!list.some((m) => m.id === chatCfg.model)) { chatCfg.model = (list.find((m) => /flash/i.test(m.id) && !/lite/i.test(m.id)) || list[0]).id; saveChat(); }
         fillModels();
-        $('chatModelHint').textContent = `${list.length} modèle${list.length > 1 ? 's' : ''} disponible${list.length > 1 ? 's' : ''} avec cette clé.`;
+        $('chatModelHint').textContent = `${list.length} modèle${list.length > 1 ? 's' : ''} disponible${list.length > 1 ? 's' : ''}` + (chatCfg.key ? ' avec cette clé.' : ' avec la clé de l\'équipe.');
       }
-    } catch (err) { $('chatModelHint').textContent = BZ.chatErrorText(err); }
+    } catch (err) {
+      $('chatModelHint').textContent = BZ.chatErrorText(err);
+      if (err.reason === 'CODE_EQUIPE') { $('chatSetup').open = true; }
+    }
   }
   fillModels();
   $('chatKey').value = chatCfg.key;
-  const chatSetupLabel = () => { $('chatSetupSum').textContent = chatCfg.key ? `Clé API Gemini enregistrée · ${(chatModels.find((m) => m.id === chatCfg.model) || {}).nom || chatCfg.model}` : 'Clé API Gemini (à configurer)'; };
+  const chatSetupLabel = () => {
+    const nom = (chatModels.find((m) => m.id === chatCfg.model) || {}).nom || chatCfg.model;
+    $('chatSetupSum').textContent = chatCfg.key ? `Votre clé Gemini · ${nom}` : relay ? `Clé de l'équipe (relais) · ${nom}` : 'Clé API Gemini (à configurer)';
+  };
   chatSetupLabel();
-  if (!chatCfg.key) $('chatSetup').open = true;
+  if (!chatAuth()) $('chatSetup').open = true;
   const saveChat = () => { try { localStorage.setItem(CHAT_KEY, JSON.stringify(chatCfg)); } catch (e) { /* rien */ } chatSetupLabel(); };
   loadModels();
-  $('chatSaveKey').addEventListener('click', () => { chatCfg.key = $('chatKey').value.trim(); chatCfg.model = $('chatModel').value; saveChat(); $('chatSetup').open = false; loadModels(); });
+  $('chatSaveKey').addEventListener('click', () => { chatCfg.key = $('chatKey').value.trim(); chatCfg.code = $('chatCode').value.trim(); chatCfg.model = $('chatModel').value; saveChat(); $('chatSetup').open = false; loadModels(); });
   $('chatModel').addEventListener('change', () => { chatCfg.model = $('chatModel').value; saveChat(); });
   $('chatForget').addEventListener('click', () => { chatCfg.key = ''; $('chatKey').value = ''; saveChat(); try { localStorage.removeItem(CHAT_KEY); } catch (e) { /* rien */ } });
 
@@ -1392,13 +1403,13 @@
     text = (text || '').trim();
     if (!text) return;
     if (assistant.busy) return;
-    if (!chatCfg.key) { $('chatSetup').open = true; $('chatKey').focus(); chatMsg('err', 'Collez d\'abord votre clé API Gemini ci-dessus.'); return; }
+    if (!chatAuth()) { $('chatSetup').open = true; $('chatKey').focus(); chatMsg('err', 'Collez d\'abord votre clé API Gemini ci-dessus.'); return; }
     chatMsg('me', esc(text));
     $('chatInput').value = '';
     $('chatSend').textContent = 'Stop';
     $('chatSugg').hidden = true;
     let bubble = null, buf = '', toolLine = null;
-    await assistant.send(text, chatCfg.key, chatCfg.model, {
+    await assistant.send(text, chatAuth(), chatCfg.model, {
       onTurnStart() { bubble = null; buf = ''; },
       onText(d) {
         if (!bubble) bubble = chatMsg('ai typing', '');
@@ -1417,7 +1428,7 @@
         if (toolLine) toolLine.innerHTML = ic(tn) + esc(tt + extra + (res.is_error ? ' (erreur : ' + res.content.replace(/^Erreur : /, '') + ')' : ''));
       },
       onDone() { if (bubble) { bubble.classList.remove('typing'); bubble.innerHTML = mdLite(buf); } },
-      onError(msg) { if (bubble) { bubble.classList.remove('typing'); } chatMsg('err', esc(msg)); },
+      onError(msg) { if (bubble) { bubble.classList.remove('typing'); } chatMsg('err', esc(msg)); if (/Code d'équipe/.test(msg)) { $('chatSetup').open = true; $('chatCode').focus(); } },
     });
     $('chatSend').textContent = 'Envoyer';
   }

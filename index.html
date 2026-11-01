@@ -304,9 +304,10 @@
         <div class="card chatcard" id="chatCard">
           <div class="row between"><h2 class="h-ic"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg>Assistant IA</h2><button class="btn ghost" id="chatNew" type="button" title="Nouvelle discussion"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Nouvelle</button></div>
           <details id="chatSetup">
-            <summary id="chatSetupSum">Clé API Gemini</summary>
+            <summary id="chatSetupSum">Accès à Gemini</summary>
+            <div id="relayRow" hidden><p class="hint">L'équipe a un <b>relais</b> : le chat utilise la clé de l'équipe, rien à coller. Si l'équipe a mis un code, collez-le ici.</p><label>Code d'équipe <input id="chatCode" type="password" placeholder="facultatif" autocomplete="off"></label></div>
             <p class="hint">Le chat utilise l'API <b>Gemini</b> de Google : il faut une <b>clé API</b> (gratuite pour commencer, avec un quota). Créez-la sur <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com/app/apikey</a> (« Create API key »). Elle reste dans ce navigateur et part directement chez Google. Ne la partagez pas.</p>
-            <label>Clé API <input id="chatKey" type="password" placeholder="Collez votre clé Gemini" autocomplete="off"></label>
+            <label>Votre propre clé API (facultatif s'il y a un relais) <input id="chatKey" type="password" placeholder="Collez votre clé Gemini" autocomplete="off"></label>
             <label>Modèle <select id="chatModel"></select><small id="chatModelHint">La liste complète s'affiche une fois la clé enregistrée.</small></label>
             <div class="row"><button class="btn primary" id="chatSaveKey" type="button">Enregistrer</button><button class="btn ghost" id="chatForget" type="button">Oublier la clé</button></div>
           </details>
@@ -455,6 +456,7 @@
 <script src="js/robot_import.js"></script>
 <script src="js/robot_preview.js"></script>
 <script src="js/cloud.js"></script>
+<script src="js/config.js"></script>
 <script src="cle-gemini.js" onerror="this.remove()"></script>
 <script src="js/app.js"></script>
 </body>

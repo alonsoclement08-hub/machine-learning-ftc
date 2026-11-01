@@ -307,11 +307,18 @@
     return err;
   }
 
+  // Accès à Gemini : auth = { key } (clé perso, appel direct) ou { relay, code } (relais de l'équipe, clé cachée).
+  const authHeaders = (auth) => (auth.relay ? (auth.code ? { 'X-Biobuzz-Code': auth.code } : {}) : { 'x-goog-api-key': auth.key });
+  const relayUrl = (auth) => auth.relay.replace(/\/+$/, '');
+
   // Un tour de génération en flux (SSE) ; renvoie { parts, finish, block }.
-  Assistant.prototype.stream = async function (key, model, body, onText, signal) {
-    const res = await fetch(`${API}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
+  Assistant.prototype.stream = async function (auth, model, body, onText, signal) {
+    const url = auth.relay
+      ? `${relayUrl(auth)}/stream?model=${encodeURIComponent(model)}`
+      : `${API}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
+    const res = await fetch(url, {
       method: 'POST', signal,
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders(auth)),
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -352,7 +359,7 @@
   };
 
   // Envoie un message et fait la boucle d'outils. ui : { onText(delta), onTurnStart(), onToolStart(name, input), onTool(name, input, res), onDone(), onError(msg) }
-  Assistant.prototype.send = async function (text, key, model, ui) {
+  Assistant.prototype.send = async function (text, auth, model, ui) {
     if (this.busy) return;
     this.busy = true;
     const ctrl = new AbortController();
@@ -373,7 +380,7 @@
         ui.onTurnStart && ui.onTurnStart();
         let out;
         try {
-          out = await this.stream(key, model, body(), (d) => ui.onText(d), ctrl.signal);
+          out = await this.stream(auth, model, body(), (d) => ui.onText(d), ctrl.signal);
         } catch (err) {
           // ancien format de schéma : on réessaie une fois avec le schéma simplifié
           if (err.status === 400 && !this.legacySchema && /parameters_?json_?schema/i.test(err.message + err.detail)) { this.legacySchema = true; turn--; continue; }
@@ -420,6 +427,9 @@
     if (err && err.name === 'AbortError') return 'Arrêté.';
     if (err && err.status) {
       const m = err.message || '';
+      // réponses du relais de l'équipe
+      if (err.reason === 'CODE_EQUIPE') return "Code d'équipe manquant ou faux : demandez-le à l'équipe et collez-le dans « Accès à Gemini ».";
+      if (['ORIGINE', 'REFUSE', 'LIMITE', 'TROP_GROS', 'MODELE', 'CONFIG'].indexOf(err.reason) >= 0) return 'Relais de l\'équipe : ' + m + '.';
       if (err.status === 400 && /API key|API_KEY/i.test(m + err.detail)) return 'Clé API refusée : vérifiez-la (copiez-la en entier depuis aistudio.google.com).';
       if (err.status === 401 || err.status === 403) return "Cette clé n'a pas accès à l'API Gemini ou à ce modèle (vérifiez-la sur aistudio.google.com).";
       if (err.status === 404) return 'Modèle introuvable : choisissez-en un autre dans la liste.';
@@ -432,8 +442,8 @@
   };
 
   // Modèles Gemini disponibles pour cette clé (ceux qui savent discuter).
-  BZ.geminiModels = async function (key) {
-    const res = await fetch(`${API}/models?pageSize=200`, { headers: { 'x-goog-api-key': key } });
+  BZ.geminiModels = async function (auth) {
+    const res = await fetch(auth.relay ? `${relayUrl(auth)}/models` : `${API}/models?pageSize=200`, { headers: authHeaders(auth) });
     let j = null;
     try { j = await res.json(); } catch (e) { /* pas de JSON */ }
     if (!res.ok) throw ApiError(res.status, j);
