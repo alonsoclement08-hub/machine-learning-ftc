@@ -4,6 +4,7 @@
   const BZ = root.BZ = root.BZ || {};
 
   const IN_PER_M = 39.3701;
+  const jstr = (v) => String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   const r3 = (v) => Math.round(v * 1000) / 1000;
 
   // Convertit les primitives du simulateur en étapes exportables (unités : mètres, degrés, ms).
@@ -163,27 +164,27 @@
     L.push('    @Override');
     L.push('    public void runOpMode() {');
     if (mec) {
-      L.push(`        avantGauche = hardwareMap.get(DcMotor.class, "${m.avantGauche}");`);
-      L.push(`        avantDroit = hardwareMap.get(DcMotor.class, "${m.avantDroit}");`);
-      L.push(`        arriereGauche = hardwareMap.get(DcMotor.class, "${m.arriereGauche}");`);
-      L.push(`        arriereDroit = hardwareMap.get(DcMotor.class, "${m.arriereDroit}");`);
+      L.push(`        avantGauche = hardwareMap.get(DcMotor.class, "${jstr(m.avantGauche)}");`);
+      L.push(`        avantDroit = hardwareMap.get(DcMotor.class, "${jstr(m.avantDroit)}");`);
+      L.push(`        arriereGauche = hardwareMap.get(DcMotor.class, "${jstr(m.arriereGauche)}");`);
+      L.push(`        arriereDroit = hardwareMap.get(DcMotor.class, "${jstr(m.arriereDroit)}");`);
       L.push(`        ${robot.inverserGauche ? 'avantGauche' : 'avantDroit'}.setDirection(DcMotorSimple.Direction.REVERSE);`);
       L.push(`        ${robot.inverserGauche ? 'arriereGauche' : 'arriereDroit'}.setDirection(DcMotorSimple.Direction.REVERSE);`);
       L.push('        for (DcMotor mot : new DcMotor[]{avantGauche, avantDroit, arriereGauche, arriereDroit}) {');
     } else {
-      L.push(`        gauche = hardwareMap.get(DcMotor.class, "${m.gauche}");`);
-      L.push(`        droit = hardwareMap.get(DcMotor.class, "${m.droit}");`);
+      L.push(`        gauche = hardwareMap.get(DcMotor.class, "${jstr(m.gauche)}");`);
+      L.push(`        droit = hardwareMap.get(DcMotor.class, "${jstr(m.droit)}");`);
       L.push(`        ${robot.inverserGauche ? 'gauche' : 'droit'}.setDirection(DcMotorSimple.Direction.REVERSE);`);
       L.push('        for (DcMotor mot : new DcMotor[]{gauche, droit}) {');
     }
     L.push('            mot.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);');
     L.push('            mot.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);');
     L.push('        }');
-    L.push(`        lanceur = hardwareMap.get(DcMotor.class, "${m.lanceur}");`);
-    L.push(`        intake = hardwareMap.get(DcMotor.class, "${m.intake}");`);
-    L.push(feeder ? `        alimentation = hardwareMap.get(DcMotor.class, "${feeder}");` : '        alimentation = intake; // les balles sont poussées dans le lanceur par l\'intake');
+    L.push(`        lanceur = hardwareMap.get(DcMotor.class, "${jstr(m.lanceur)}");`);
+    L.push(`        intake = hardwareMap.get(DcMotor.class, "${jstr(m.intake)}");`);
+    L.push(feeder ? `        alimentation = hardwareMap.get(DcMotor.class, "${jstr(feeder)}");` : '        alimentation = intake; // les balles sont poussées dans le lanceur par l\'intake');
     if (nv) {
-      L.push(`        navx = hardwareMap.get(NavxMicroNavigationSensor.class, "${nv.nom}");`);
+      L.push(`        navx = hardwareMap.get(NavxMicroNavigationSensor.class, "${jstr(nv.nom)}");`);
       L.push('        while (!isStopRequested() && navx.isCalibrating()) sleep(50); // calibration : ne pas bouger le robot');
       L.push('        capZero = capBrut();');
     }
