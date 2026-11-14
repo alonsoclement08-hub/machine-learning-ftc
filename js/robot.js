@@ -59,6 +59,13 @@
         intake: 'intake',
         alimentation: '', // moteur qui pousse les balles dans le lanceur ('' = on utilise l'intake)
       },
+      // NavX-micro : les rotations de l'export Java sont mesurées par le capteur (au lieu du chrono)
+      navx: {
+        actif: true,
+        nom: 'navx', // nom dans la configuration du Robot Controller
+        tolerance_deg: 2, // erreur d'angle acceptée
+        inverser: false, // true si l'angle du capteur augmente dans le sens horaire
+      },
       inverserGauche: true, // moteurs du côté gauche en REVERSE (cas le plus courant)
     };
   };

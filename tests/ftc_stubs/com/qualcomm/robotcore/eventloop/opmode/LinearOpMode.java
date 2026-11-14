@@ -4,7 +4,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 public abstract class LinearOpMode {
   public HardwareMap hardwareMap = new HardwareMap();
   public Telemetry telemetry = new Telemetry();
-  public static class Telemetry { public void addLine(String s) {} public void update() {} }
+  public static class Telemetry { public void addLine(String s) {} public void update() {} public void addData(String c, String f, Object... a) {} }
   public abstract void runOpMode() throws InterruptedException;
   public void waitForStart() {}
   public boolean isStopRequested() { return false; }

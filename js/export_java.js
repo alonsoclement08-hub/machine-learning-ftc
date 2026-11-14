@@ -42,6 +42,55 @@
     ];
   };
 
+  // Méthode tourner(degres) : avec la NavX (angle mesuré) ou au chrono.
+  function pushTourner(L, nv, mec) {
+    const roues = (p) => (mec ? `roues(-${p}, ${p}, -${p}, ${p});` : `roues(-${p}, ${p});`);
+    const stop = mec ? 'roues(0, 0, 0, 0);' : 'roues(0, 0);';
+    L.push('    /** Rotation sur place : degres > 0 = vers la gauche (sens inverse des aiguilles d\'une montre). */');
+    L.push('    private void tourner(double degres) {');
+    if (!nv) {
+      L.push('        double t = Math.abs(degres) / 180.0 * MS_POUR_180_DEG;');
+      L.push('        double p = PUISSANCE_ROTATION * Math.signum(degres);');
+      L.push('        ' + roues('p'));
+      L.push('        attendre((long) t);');
+      L.push('        ' + stop);
+      L.push('        attendre(PAUSE_MS);');
+      L.push('    }');
+      return;
+    }
+    L.push('        capVoulu += degres; // cap absolu : les erreurs ne s\'additionnent pas');
+    L.push('        long debut = System.currentTimeMillis();');
+    L.push('        long delaiMax = (long) (Math.abs(degres) / 180.0 * MS_POUR_180_DEG * 2 + 1000); // sécurité si la NavX ne répond plus');
+    L.push('        while (opModeIsActive() && System.currentTimeMillis() - debut < delaiMax) {');
+    L.push('            double erreur = ecartAngle(capVoulu - capActuel());');
+    L.push('            if (Math.abs(erreur) < TOLERANCE_DEG) break;');
+    L.push('            // ralentit près de la cible pour ne pas la dépasser');
+    L.push('            double p = Math.max(0.15, Math.min(PUISSANCE_ROTATION, Math.abs(erreur) / 60.0 * PUISSANCE_ROTATION)) * Math.signum(erreur);');
+    L.push('            ' + roues('p'));
+    L.push('        }');
+    L.push('        ' + stop);
+    L.push('        telemetry.addData("Cap NavX", "%.1f deg", capActuel());');
+    L.push('        telemetry.update();');
+    L.push('        attendre(PAUSE_MS);');
+    L.push('    }');
+    L.push('');
+    L.push('    /** Angle brut de la NavX en degrés (> 0 = vers la gauche). */');
+    L.push('    private double capBrut() {');
+    L.push('        return SIGNE_NAVX * navx.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES).firstAngle;');
+    L.push('    }');
+    L.push('');
+    L.push('    /** Cap depuis le démarrage, entre -180° et 180°. */');
+    L.push('    private double capActuel() {');
+    L.push('        return ecartAngle(capBrut() - capZero);');
+    L.push('    }');
+    L.push('');
+    L.push('    private double ecartAngle(double a) {');
+    L.push('        while (a > 180) a -= 360;');
+    L.push('        while (a <= -180) a += 360;');
+    L.push('        return a;');
+    L.push('    }');
+  }
+
   BZ.exportJava = function (result, robot, opts) {
     opts = opts || {};
     const className = opts.className || 'AutoBiobuzzIA';
@@ -49,6 +98,7 @@
     const m = robot.moteurs;
     const mec = robot.chassis !== 'tank';
     const feeder = m.alimentation && m.alimentation.trim() ? m.alimentation.trim() : null;
+    const nv = robot.navx && robot.navx.actif ? robot.navx : null;
     const L = [];
     const startLines = opts.startText || [];
     L.push('package org.firstinspires.ftc.teamcode;');
@@ -57,6 +107,12 @@
     L.push('import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;');
     L.push('import com.qualcomm.robotcore.hardware.DcMotor;');
     L.push('import com.qualcomm.robotcore.hardware.DcMotorSimple;');
+    if (nv) {
+      L.push('import com.qualcomm.hardware.kauailabs.NavxMicroNavigationSensor;');
+      L.push('import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;');
+      L.push('import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;');
+      L.push('import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;');
+    }
     L.push('');
     L.push('/*');
     L.push(' * AUTO BIOBUZZ généré par le simulateur "BIOBUZZ Auto IA".');
@@ -88,12 +144,21 @@
     L.push(`    static final double PUISSANCE_ROTATION = ${robot.puissanceRotation};`);
     if (mec) L.push(`    static final double FACTEUR_CRABE = ${robot.facteurCrabe}; // vitesse en crabe / vitesse en avant`);
     L.push(`    static final long PAUSE_MS = ${robot.pauseMs};`);
+    if (nv) {
+      L.push(`    static final double TOLERANCE_DEG = ${nv.tolerance_deg || 2}; // erreur d'angle acceptée avec la NavX`);
+      L.push(`    static final double SIGNE_NAVX = ${nv.inverser ? -1 : 1}; // -1 si l'angle de la NavX est inversé`);
+    }
     L.push(`    static final double PUISSANCE_INTAKE = ${robot.intake.puissance};`);
     L.push(`    static final long MS_PAR_BALLE_TIR = ${robot.lanceur.msParBalle};`);
     L.push('');
     if (mec) L.push('    private DcMotor avantGauche, avantDroit, arriereGauche, arriereDroit;');
     else L.push('    private DcMotor gauche, droit;');
     L.push('    private DcMotor lanceur, intake, alimentation;');
+    if (nv) {
+      L.push('    private NavxMicroNavigationSensor navx;');
+      L.push('    private double capVoulu = 0; // cap cumulé voulu, en degrés (0 = cap au démarrage)');
+      L.push('    private double capZero = 0;');
+    }
     L.push('');
     L.push('    @Override');
     L.push('    public void runOpMode() {');
@@ -117,6 +182,11 @@
     L.push(`        lanceur = hardwareMap.get(DcMotor.class, "${m.lanceur}");`);
     L.push(`        intake = hardwareMap.get(DcMotor.class, "${m.intake}");`);
     L.push(feeder ? `        alimentation = hardwareMap.get(DcMotor.class, "${feeder}");` : '        alimentation = intake; // les balles sont poussées dans le lanceur par l\'intake');
+    if (nv) {
+      L.push(`        navx = hardwareMap.get(NavxMicroNavigationSensor.class, "${nv.nom}");`);
+      L.push('        while (!isStopRequested() && navx.isCalibrating()) sleep(50); // calibration : ne pas bouger le robot');
+      L.push('        capZero = capBrut();');
+    }
     L.push('');
     L.push('        telemetry.addLine("BIOBUZZ IA prêt : vérifiez le placement de départ !");');
     L.push('        telemetry.update();');
@@ -154,15 +224,7 @@
       L.push('        attendre(PAUSE_MS);');
       L.push('    }');
       L.push('');
-      L.push('    /** Rotation sur place : degres > 0 = vers la gauche (sens inverse des aiguilles d\'une montre). */');
-      L.push('    private void tourner(double degres) {');
-      L.push('        double t = Math.abs(degres) / 180.0 * MS_POUR_180_DEG;');
-      L.push('        double p = PUISSANCE_ROTATION * Math.signum(degres);');
-      L.push('        roues(-p, p, -p, p);');
-      L.push('        attendre((long) t);');
-      L.push('        roues(0, 0, 0, 0);');
-      L.push('        attendre(PAUSE_MS);');
-      L.push('    }');
+      pushTourner(L, nv, true);
       L.push('');
       L.push('    private void roues(double ag, double ad, double arg, double ard) {');
       L.push('        avantGauche.setPower(ag);');
@@ -182,15 +244,7 @@
       L.push('        attendre(PAUSE_MS);');
       L.push('    }');
       L.push('');
-      L.push('    /** Rotation sur place : degres > 0 = vers la gauche (sens inverse des aiguilles d\'une montre). */');
-      L.push('    private void tourner(double degres) {');
-      L.push('        double t = Math.abs(degres) / 180.0 * MS_POUR_180_DEG;');
-      L.push('        double p = PUISSANCE_ROTATION * Math.signum(degres);');
-      L.push('        roues(-p, p);');
-      L.push('        attendre((long) t);');
-      L.push('        roues(0, 0);');
-      L.push('        attendre(PAUSE_MS);');
-      L.push('    }');
+      pushTourner(L, nv, false);
       L.push('');
       L.push('    private void roues(double g, double d) {');
       L.push('        gauche.setPower(g);');

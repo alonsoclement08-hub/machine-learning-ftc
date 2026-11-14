@@ -66,3 +66,17 @@ for (const chassis of ['mecanum', 'tank']) {
     assert.strictEqual(new Set(blockIds).size, blockIds.length, "ids de blocs uniques");
   });
 }
+
+test('export Java : NavX pour tourner, noms de moteurs et de NavX personnalisés', () => {
+  const { robot, r, startText } = bestFor('mecanum');
+  robot.moteurs.avantGauche = 'moteurAG';
+  robot.navx.nom = 'monNavx';
+  const java = BZ.exportJava(r, robot, { startText });
+  assert.match(java, /hardwareMap\.get\(DcMotor\.class, "moteurAG"\)/);
+  assert.match(java, /hardwareMap\.get\(NavxMicroNavigationSensor\.class, "monNavx"\)/);
+  assert.match(java, /capVoulu \+= degres/);
+  robot.navx.actif = false;
+  const chrono = BZ.exportJava(r, robot, { startText });
+  assert.doesNotMatch(chrono, /Navx/i);
+  assert.match(chrono, /MS_POUR_180_DEG \* ?|\/ 180\.0 \* MS_POUR_180_DEG/);
+});
