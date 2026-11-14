@@ -55,8 +55,8 @@ for (const chassis of ['mecanum', 'tank']) {
     fs.writeFileSync(f, xmlPart);
     execFileSync('python3', ['-I', '-c', 'import sys, xml.dom.minidom as m; m.parse(sys.argv[1])', f]);
     // Uniquement des types de blocs vus dans de vrais fichiers .blk FTC
-    const known = new Set(['procedures_defnoreturn', 'procedures_callnoreturn', 'variables_set', 'variables_get', 'math_number',
-      'math_arithmetic', 'comment', 'dcMotor_setProperty_Number', 'dcMotor_setDualProperty_Number', 'dcMotor_setProperty_Direction',
+    const known = new Set(['procedures_defnoreturn', 'procedures_callnoreturn', 'variables_set', 'variables_get', 'math_number', 'misc_comment',
+      'math_arithmetic', 'dcMotor_setProperty_Number', 'dcMotor_setDualProperty_Number', 'dcMotor_setProperty_Direction',
       'dcMotor_typedEnum_direction', 'linearOpMode_sleep_Number', 'linearOpMode_waitForStart', 'controls_if', 'linearOpMode_opModeIsActive']);
     for (const m of xmlPart.matchAll(/type="([^"]+)"/g)) assert.ok(known.has(m[1]), 'bloc inconnu ' + m[1]);
     // ids uniques

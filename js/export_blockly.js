@@ -24,7 +24,7 @@
 
     // Chaque instruction est une chaîne XML d'un bloc "statement" sans balise <next>.
     const setVar = (n, v) => `<block type="variables_set" id="${id()}"><field name="VAR" id="${VARS[n]}">${n}</field><value name="VALUE"><block type="math_number" id="${id()}"><field name="NUM">${v}</field></block></value>`;
-    const comment = (t) => `<block type="comment" id="${id()}"><field name="COMMENT">${esc(t)}</field>`;
+    const comment = (t) => `<block type="misc_comment" id="${id()}"><field name="COMMENT">${esc(t)}</field>`;
     const power = (motor, valueXml) => `<block type="dcMotor_setProperty_Number" id="${id()}"><field name="IDENTIFIER">${esc(motor)}AsDcMotor</field><field name="PROP">Power</field><data>{"IDENTIFIER":"${esc(motor)}"}</data><value name="VALUE">${valueXml}</value>`;
     const dual = (m1, v1, m2, v2) => `<block type="dcMotor_setDualProperty_Number" id="${id()}"><field name="PROP">Power</field><field name="IDENTIFIER1">${esc(m1)}AsDcMotor</field><field name="IDENTIFIER2">${esc(m2)}AsDcMotor</field><data>{"IDENTIFIER1":"${esc(m1)}","IDENTIFIER2":"${esc(m2)}"}</data><value name="VALUE1">${num(v1)}</value><value name="VALUE2">${num(v2)}</value>`;
     const direction = (motor) => `<block type="dcMotor_setProperty_Direction" id="${id()}"><field name="IDENTIFIER">${esc(motor)}AsDcMotor</field><field name="PROP">Direction</field><data>{"IDENTIFIER":"${esc(motor)}"}</data><value name="VALUE"><shadow type="dcMotor_typedEnum_direction" id="${id()}"><field name="DIRECTION">REVERSE</field></shadow></value>`;
